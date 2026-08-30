@@ -3,7 +3,7 @@
 
 ## 1. Introduction
 
-This document serves as the technical specification for the Omaha Poker Hand Evaluator library. For general usage, installation, and how to run tests, please refer to the [README.md](README.md).
+This document serves as the technical specification for the Omaha Poker Hand Evaluator library. For general usage, installation, and how to run tests, please refer to the [README.md](../README.md).
 
 ## 4. Notation and Canonical Forms
 
@@ -52,7 +52,8 @@ Example: `AcAsKh2d` is NOT canonical. Canonical order is `AsAcKh2d`.
 - Each GPU thread evaluates one (board, hero hand, villain hand) triple, or is responsible for one Monte Carlo trial.
 - Batches of trials are uploaded to GPU memory as flat arrays of card indices; results (win/tie/loss flags or scores) are read back and aggregated on CPU.
 - Random number generation for Monte Carlo sampling on GPU uses a parallel-friendly PRNG (e.g., PCG or Xorshift) seeded per-thread deterministically from a master seed for reproducibility.
-- **Current Limitation**: GPU evaluation is currently supported for **rivered boards (exactly 5 cards)** only. Pre-flop, Flop, and Turn evaluations automatically fall back to the optimized CPU backend. This is why GPU usage may not be visible in Activity Monitor when testing with datasets dominated by early-street queries (like `data/test_results_db.txt`).
+- **Current Limitation**: GPU evaluation is currently supported for **rivered boards (exactly 5 cards)** only. Pre-flop, Flop, and Turn evaluations automatically fall back to the optimized CPU backend.
+- **M2.1 Hardening**: The GPU backend has been hardened to resolve zero-equity results by adding explicit device polling before buffer writes and using safe memory initialization patterns.
 
 ---
 
@@ -78,7 +79,7 @@ Example: `AcAsKh2d` is NOT canonical. Canonical order is `AsAcKh2d`.
    - Monte Carlo cases: results must fall within statistical tolerance based on sample count. A 100% pass rate on the 100-case dataset is achieved even with a reduced sample count of 10,000 using the 0.1 equity tolerance.
 4. **Reporting**:
    - Harness outputs a summary (pass rate, execution speed, max deviation) to console.
-   - A `test_results.log` file is updated after every run, recording a summary of the run and performance metrics broken down by query type (Pre-flop, Flop, Turn, River).
+   - A `test_results.log` file is updated after every run in the `docs/` folder, recording a summary of the run and performance metrics broken down by query type (Pre-flop, Flop, Turn, River).
    - **NEW**: New results are prepended to the top of `test_results.log` for immediate visibility.
    - **NEW**: The harness supports benchmarking against `ps-eval` if provided via the `--ps-eval` flag.
 5. **Regression protection**: This dataset becomes part of the automated test suite, run on every change to evaluation logic.
@@ -169,4 +170,5 @@ Note: The internal evaluator is now highly competitive with `ps-eval` for single
 
 ## 15. Milestones
 1. **M1 (COMPLETED)** — Core types, high-performance CPU/GPU evaluators, Omaha Hi/Lo support, range-vs-range calculations, parallel validation bench, and comprehensive documentation.
-2. **M2** — Distributed evaluation (multi-node support), enhanced range weighting, and web-based visualization tools.
+2. **M2.1 (COMPLETED)** — Hardened GPU backend with improved synchronization and memory safety. Resolved intermittent zero-equity results.
+3. **M2.2** — Distributed evaluation (multi-node support), enhanced range weighting, and web-based visualization tools.

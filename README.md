@@ -98,8 +98,19 @@ cargo run --release --bin validation -- --input data/test_results_10.txt --ps-ev
 
 ## Documentation
 
-For detailed technical specifications, including card notation, canonical forms, and the GPU execution model, see [PokerHandEvaluator.md](PokerHandEvaluator.md).
+For detailed technical specifications, see [docs/PokerHandEvaluator.md](docs/PokerHandEvaluator.md).
+Release notes and historical test results are available in the [docs/](docs/) folder.
 
 ## Performance
 
-The internal CPU evaluator is optimized to be highly competitive with `ps-eval`, achieving ~3.9ms per single-hand evaluation on modern hardware in release builds. The validation bench is fully parallelized, capable of processing over 240,000 cases in approximately 60 seconds (~250μs per case including overhead) on multi-core systems. Monte Carlo simulations maintain 100% accuracy (within 0.1 tolerance) even with sample sizes as low as 10,000.
+The internal CPU evaluator is optimized for high-performance Omaha evaluation.
+- **Single-Hand Eval**: ~3.9ms per case.
+- **Parallel Validation**: ~250μs per case on multi-core systems.
+- **Accuracy**: 100% pass rate within 0.1 tolerance for benchmark datasets.
+
+## GPU Acceleration (M2.1 Hardening)
+
+The library features a robust GPU backend powered by `wgpu`. Recent improvements in **M2.1** have focused on:
+- **Synchronization**: Explicit device polling (`wgpu::Maintain::Wait`) to ensure zero-equity race conditions are eliminated.
+- **Memory Safety**: Replaced unsafe pointer arithmetic with safe `bytemuck` and `GpuInput::zeroed()` initialization for GPU buffers.
+- **Batching**: Optimized batch submission for up to 256 cases per GPU call.
