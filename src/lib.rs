@@ -1,3 +1,19 @@
+//! Pot-Limit Omaha (PLO) hand evaluation and equity calculation.
+//!
+//! - [`Card`], [`Hand`] (4 cards), [`Board`] (0/3/4/5 cards) and [`Range`]
+//!   (weighted list of hands) are the core domain types; see
+//!   `docs/PokerHandEvaluator.md` §4 for notation and canonical ordering.
+//! - [`eval::evaluate_5_cards`] / [`evaluate_omaha_hand`] rank a single
+//!   showdown on the CPU; `eval_fast` adapts that logic to the flat
+//!   card-index representation the GPU shader also uses.
+//! - [`evaluate_hand_vs_hand`], [`evaluate_hand_vs_range`] and
+//!   [`evaluate_range_vs_range`] compute equity for CPU-only callers;
+//!   [`Backend`] wraps the same operations with GPU routing and fallback.
+//! - The `gpu` module holds the `wgpu` compute pipeline
+//!   (`src/omaha.wgsl`) that mirrors the CPU evaluator for exhaustive
+//!   river evaluation and parallelized Monte Carlo sampling on earlier
+//!   streets.
+
 pub mod eval;
 pub mod eval_fast;
 pub mod gpu;
@@ -8,6 +24,8 @@ use rand::seq::SliceRandom;
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
+/// A card suit. Ordered `Spades > Hearts > Diamonds > Clubs` per §4.1.4,
+/// which breaks ties when two cards share a [`Rank`] in canonical ordering.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Suit {
     Spades = 0,
@@ -33,6 +51,8 @@ impl Ord for Suit {
     }
 }
 
+/// A card rank, `Two` through `Ace`. Derives `Ord` so higher ranks compare
+/// greater, matching poker hand strength (used directly by [`eval`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Rank {
     Two = 2,
@@ -58,6 +78,8 @@ impl Rank {
         ].into_iter()
     }
 
+    /// Parses the rank character of §4.1.1 notation (`2`-`9`, `T`, `J`,
+    /// `Q`, `K`, `A`; case-insensitive). Inverse of [`Rank::to_char`].
     pub fn from_char(c: char) -> Option<Rank> {
         match c.to_ascii_uppercase() {
             '2' => Some(Rank::Two),
@@ -76,13 +98,36 @@ impl Rank {
             _ => None,
         }
     }
+
+    /// Renders the rank as its §4.1.1 notation character. Inverse of
+    /// [`Rank::from_char`]; used by [`Card`]'s `Display` impl.
+    pub fn to_char(self) -> char {
+        match self {
+            Rank::Two => '2',
+            Rank::Three => '3',
+            Rank::Four => '4',
+            Rank::Five => '5',
+            Rank::Six => '6',
+            Rank::Seven => '7',
+            Rank::Eight => '8',
+            Rank::Nine => '9',
+            Rank::Ten => 'T',
+            Rank::Jack => 'J',
+            Rank::Queen => 'Q',
+            Rank::King => 'K',
+            Rank::Ace => 'A',
+        }
+    }
 }
 
 impl Suit {
+    /// All four suits, in enum declaration order (`Spades` first).
     pub fn all() -> impl Iterator<Item = Suit> {
         [Suit::Spades, Suit::Hearts, Suit::Diamonds, Suit::Clubs].into_iter()
     }
 
+    /// Parses the suit character of §4.1.1 notation (`s`, `h`, `d`, `c`;
+    /// case-insensitive). Inverse of [`Suit::to_char`].
     pub fn from_char(c: char) -> Option<Suit> {
         match c.to_ascii_lowercase() {
             's' => Some(Suit::Spades),
@@ -92,8 +137,22 @@ impl Suit {
             _ => None,
         }
     }
+
+    /// Renders the suit as its §4.1.1 notation character. Inverse of
+    /// [`Suit::from_char`]; used by [`Card`]'s `Display` impl.
+    pub fn to_char(self) -> char {
+        match self {
+            Suit::Spades => 's',
+            Suit::Hearts => 'h',
+            Suit::Diamonds => 'd',
+            Suit::Clubs => 'c',
+        }
+    }
 }
 
+/// A single playing card. `Ord` sorts by the canonical §4.1.4 order (rank
+/// descending, then suit precedence), which [`Hand::new`] and [`Board::new`]
+/// rely on to normalize storage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Card {
     pub rank: Rank,
@@ -121,6 +180,9 @@ impl Card {
         Self { rank, suit }
     }
 
+    /// Parses §4.1.1 notation, e.g. `"As"` (Ace of Spades). Returns `None`
+    /// for anything other than exactly rank-char + suit-char. Inverse of
+    /// the `Display` impl below.
     pub fn from_str(s: &str) -> Option<Self> {
         if s.len() != 2 {
             return None;
@@ -132,32 +194,76 @@ impl Card {
     }
 }
 
+/// Renders §4.1.1 notation, e.g. `Card::new(Rank::Ace, Suit::Spades)` ->
+/// `"As"`. Inverse of [`Card::from_str`].
+impl std::fmt::Display for Card {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.rank.to_char(), self.suit.to_char())
+    }
+}
+
+/// A full, unshuffled 52-card deck in `Suit::all()` x `Rank::all()` order.
+/// The single source of deck construction shared by [`Range::from_shorthand`]
+/// and [`random_hands`], so deck order/composition only needs to be right
+/// in one place.
+pub fn full_deck() -> Vec<Card> {
+    let mut deck = Vec::with_capacity(52);
+    for s in Suit::all() {
+        for r in Rank::all() {
+            deck.push(Card::new(r, s));
+        }
+    }
+    deck
+}
+
+/// An Omaha hole-card hand: exactly 4 cards, always held in canonical
+/// (§4.1.4) order.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Hand(pub [Card; 4]);
 
 impl Hand {
+    /// Sorts `cards` into canonical order and wraps them as a `Hand`.
     pub fn new(mut cards: [Card; 4]) -> Self {
         cards.sort();
         Self(cards)
     }
 }
 
+/// The community cards: 0 (pre-flop), 3 (flop), 4 (turn) or 5 (river)
+/// cards, held in canonical (§4.1.4) order.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Board(pub Vec<Card>);
 
 impl Board {
+    /// Sorts `cards` into canonical order and wraps them as a `Board`.
     pub fn new(mut cards: Vec<Card>) -> Self {
         cards.sort();
         Self(cards)
     }
 }
 
+/// A weighted collection of possible hands, e.g. a villain's estimated
+/// holding range. Each `(Hand, f64)` pair is a hand and its relative
+/// weight; weights need not sum to 1 (evaluators normalize by total
+/// weight, not count).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Range {
     pub hands: Vec<(Hand, f64)>,
 }
 
 impl Range {
+    /// Parses §4.1.3 shorthand range notation into a `Range`, expanding
+    /// each comma-separated part into one or more concrete hands (all
+    /// with weight `1.0` — per-hand weighting is not yet supported):
+    ///
+    /// - An exact 8-character hand, e.g. `"AsKsQhJh"`.
+    /// - A 2- or 4-rank pattern, e.g. `"AA"` (any hand with 2+ Aces) or
+    ///   `"AKQJ"` (any hand containing all four ranks) — expanded into every
+    ///   matching 4-card combo from the remaining deck.
+    ///
+    /// `dead_cards` are excluded from both the deck used for pattern
+    /// expansion and from any resulting hand (hands that would reuse a
+    /// dead card are dropped rather than erroring).
     pub fn from_shorthand(s: &str, dead_cards: &[Card]) -> Result<Self, String> {
         let mut hands = Vec::new();
         let parts = s.split(',').map(|p| p.trim());
@@ -194,16 +300,8 @@ impl Range {
                     .map(|c| Rank::from_char(c).ok_or(format!("Invalid rank: {}", c)))
                     .collect::<Result<Vec<_>, _>>()?;
                 
-                let mut deck = Vec::new();
-                for r in Rank::all() {
-                    for s in Suit::all() {
-                        let c = Card::new(r, s);
-                        if !dead_cards.contains(&c) {
-                            deck.push(c);
-                        }
-                    }
-                }
-                
+                let deck: Vec<Card> = full_deck().into_iter().filter(|c| !dead_cards.contains(c)).collect();
+
                 let mut combos = Vec::new();
                 for c1_idx in 0..deck.len() {
                     for c2_idx in c1_idx+1..deck.len() {
@@ -275,13 +373,34 @@ impl Range {
     }
 }
 
+/// How an equity calculation is carried out.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EvalMode {
+    /// Exhaustive when the remaining board is small enough to enumerate
+    /// cheaply (see `evaluate_hand_vs_hand`'s `board.len() >= 3` check),
+    /// Monte Carlo (10,000 samples) otherwise.
     Auto,
+    /// Enumerate every possible completion of the board exactly. Exact but
+    /// requires `board.len() >= 3` (river needs 0 completions, turn needs
+    /// C(46,1), flop needs C(45,2) — pre-flop/turn-less boards are not
+    /// supported by the CPU exhaustive path, only by GPU MC or CPU MC).
     Exhaustive,
+    /// Deal `samples` random completions of the board with the given RNG
+    /// `seed` and average the outcomes. The only mode usable when fewer
+    /// than 3 board cards are known (see [`evaluate_hand_vs_hand`]).
     MonteCarlo { samples: u64, seed: u64 },
 }
 
+/// Selects which compute backend(s) an equity calculation may use.
+///
+/// `Auto` always tries the GPU (`src/omaha.wgsl`) first and falls back to
+/// the CPU evaluator per-case whenever the GPU is unavailable (no adapter,
+/// e.g. headless CI) or returns `None` for a given case. Omaha Hi/Lo is not
+/// implemented on the GPU, so `hi_lo` calculations always run on CPU
+/// regardless of the selected backend. `Cuda`/`Vulkan`/`Metal` all currently
+/// dispatch to the same `wgpu`-selected adapter as `Auto`'s GPU path (wgpu
+/// picks the concrete backend at adapter-request time); they exist as
+/// explicit backend-pinning hooks for future per-backend tuning.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Backend {
     Auto,
@@ -292,6 +411,9 @@ pub enum Backend {
 }
 
 impl Backend {
+    /// Whether this backend can be used at all. GPU backends do not check
+    /// hardware availability here — that's discovered lazily on first GPU
+    /// call and surfaces as a per-call `None`/CPU-fallback instead.
     pub fn is_available(&self) -> bool {
         match self {
             Backend::Auto => true,
@@ -300,6 +422,7 @@ impl Backend {
         }
     }
 
+    /// Single hand-vs-hand equity, routed per [`Backend`]'s rules above.
     pub fn run_evaluation(&self, hero: &Hand, villain: &Hand, board: &Board, mode: &EvalMode, hi_lo: bool) -> Option<EquityResult> {
         if !self.is_available() {
             return None;
@@ -307,11 +430,9 @@ impl Backend {
         match self {
             Backend::Cpu => Some(evaluate_hand_vs_hand(hero.clone(), villain.clone(), board.clone(), mode.clone(), hi_lo)),
             Backend::Auto => {
-                // Try GPU first only for river boards
-                if board.0.len() == 5 {
-                    if let Some(res) = crate::gpu::run_gpu_evaluation(hero, villain, board, mode, hi_lo) {
-                        return Some(res);
-                    }
+                // Try GPU first
+                if let Some(res) = crate::gpu::run_gpu_evaluation(hero, villain, board, mode, hi_lo) {
+                    return Some(res);
                 }
                 Some(evaluate_hand_vs_hand(hero.clone(), villain.clone(), board.clone(), mode.clone(), hi_lo))
             }
@@ -321,11 +442,15 @@ impl Backend {
         }
     }
 
+    /// Range-vs-range equity for a single `(hero_range, villain_range,
+    /// board, mode)` case, routed per [`Backend`]'s rules above. Prefer
+    /// [`Backend::run_range_evaluation_batch`] when evaluating many cases —
+    /// it amortizes GPU dispatch overhead across up to 256 cases per call.
     pub fn run_range_evaluation(&self, hero_range: &Range, villain_range: &Range, board: &Board, mode: &EvalMode, hi_lo: bool) -> EquityResult {
         match self {
             Backend::Cpu => evaluate_range_vs_range_internal(hero_range.clone(), villain_range.clone(), board.clone(), mode.clone(), hi_lo),
             Backend::Auto => {
-                if !hi_lo && board.0.len() == 5 {
+                if !hi_lo {
                     if let Some(res) = crate::gpu::run_gpu_range_evaluation(hero_range, villain_range, board, mode) {
                         return res;
                     }
@@ -343,6 +468,13 @@ impl Backend {
         }
     }
 
+    /// Range-vs-range equity for many independent cases at once. `hi_lo`
+    /// applies uniformly to every case (all-CPU) since the GPU shader only
+    /// implements Omaha Hi. For `!hi_lo`, cases are chunked into batches of
+    /// up to 256 (the GPU shader's fixed per-dispatch case limit) and sent
+    /// to the GPU together; any case the GPU can't or didn't resolve (e.g.
+    /// no adapter available) falls back to the CPU individually, so a
+    /// single bad/unsupported case never drags the whole batch to CPU.
     pub fn run_range_evaluation_batch(
         &self,
         cases: &[(Range, Range, Board, EvalMode)],
@@ -361,36 +493,10 @@ impl Backend {
             Backend::Auto | Backend::Metal | Backend::Cuda | Backend::Vulkan => {
                 let mut all_results = Vec::with_capacity(cases.len());
                 for chunk in cases.chunks(256) {
-                    // Filter cases for GPU (only 5-card boards and not Hi/Lo)
-                    let mut gpu_cases = Vec::with_capacity(chunk.len());
-                    let mut is_gpu_case = Vec::with_capacity(chunk.len());
-
-                    for c in chunk {
-                        let use_gpu = c.2.0.len() == 5 && !hi_lo;
-                        is_gpu_case.push(use_gpu);
-                        if use_gpu {
-                            gpu_cases.push(c.clone());
-                        }
-                    }
-
-                    if gpu_cases.is_empty() {
-                        for c in chunk {
-                            all_results.push(evaluate_range_vs_range_internal(c.0.clone(), c.1.clone(), c.2.clone(), c.3.clone(), hi_lo));
-                        }
-                        continue;
-                    }
-
-                    let gpu_results = crate::gpu::run_gpu_range_evaluation_batch(&gpu_cases);
-                    let mut gpu_idx = 0;
-                    for (i, &is_gpu) in is_gpu_case.iter().enumerate() {
-                        if is_gpu {
-                            if let Some(r) = gpu_results[gpu_idx].clone() {
-                                all_results.push(r);
-                            } else {
-                                let (h, v, b, m) = &chunk[i];
-                                all_results.push(evaluate_range_vs_range_internal(h.clone(), v.clone(), b.clone(), m.clone(), hi_lo));
-                            }
-                            gpu_idx += 1;
+                    let gpu_results = crate::gpu::run_gpu_range_evaluation_batch(chunk);
+                    for (i, res) in gpu_results.into_iter().enumerate() {
+                        if let Some(r) = res {
+                            all_results.push(r);
                         } else {
                             let (h, v, b, m) = &chunk[i];
                             all_results.push(evaluate_range_vs_range_internal(h.clone(), v.clone(), b.clone(), m.clone(), hi_lo));
@@ -403,6 +509,14 @@ impl Backend {
     }
 }
 
+/// Hi (and, if requested, Lo) equity for one hero-vs-villain or
+/// range-vs-range calculation. `win + tie + loss == 1.0` for the Hi side
+/// (subject to floating-point rounding); the `_low` fields mirror that for
+/// the Omaha Hi/Lo low side and are `None` whenever `hi_lo` was `false` or
+/// no qualifying low hand existed for either side. A single scalar equity
+/// (e.g. for display) is `win + tie / 2.0` (Hi) and, if applicable,
+/// `win_low.unwrap() + tie_low.unwrap() / 2.0` split against the Hi share
+/// of the pot per standard Hi/Lo rules.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EquityResult {
     pub win: f64,
@@ -411,11 +525,21 @@ pub struct EquityResult {
     pub win_low: Option<f64>,
     pub tie_low: Option<f64>,
     pub loss_low: Option<f64>,
+    /// Number of board completions (exhaustive) or samples (Monte Carlo)
+    /// this result was computed from.
     pub trial_count: u64,
+    /// The mode actually used (with `Auto` already resolved to a concrete
+    /// mode), not necessarily the mode passed in by the caller.
     pub mode: EvalMode,
+    /// Reserved for a future statistical confidence interval on Monte Carlo
+    /// results; always `None` today.
     pub confidence_interval: Option<(f64, f64)>,
 }
 
+/// Best 5-card Omaha Hi hand `hand` can make with `board`, trying every
+/// legal "exactly 2 from hand + exactly 3 from board" combination.
+/// `board.len()` must be 0 or in `3..=5`; boards with fewer than 3 cards
+/// have no valid combination and return the lowest possible [`HandRank`].
 pub fn evaluate_omaha_hand(hand: &Hand, board: &[Card]) -> HandRank {
     let mut best_rank = HandRank::HighCard(Rank::Two, Rank::Two, Rank::Two, Rank::Two, Rank::Two);
 
@@ -445,6 +569,11 @@ pub fn evaluate_omaha_hand(hand: &Hand, board: &[Card]) -> HandRank {
     best_rank
 }
 
+/// Best Omaha Lo (8-or-better) hand `hand` can make with `board`, or `None`
+/// if neither hand nor board combination yields a qualifying low (5 cards
+/// ranked 8 or under, Ace playing low). The result is 5 ranks sorted
+/// descending by *low* value (Ace = 1) for easy lexicographic comparison
+/// between two low hands (lower is better).
 pub fn evaluate_omaha_hand_low(hand: &Hand, board: &[Card]) -> Option<[Rank; 5]> {
     let mut best_low: Option<[Rank; 5]> = None;
 
@@ -485,6 +614,14 @@ pub fn evaluate_omaha_hand_low(hand: &Hand, board: &[Card]) -> Option<[Rank; 5]>
     best_low
 }
 
+/// CPU-only single hand-vs-hand equity (no GPU routing — see [`Backend`]
+/// for that). `mode` resolves as follows:
+/// - `Exhaustive` or `Auto` with `board.len() >= 3`: enumerates every legal
+///   completion of the board exactly.
+/// - `MonteCarlo { samples, seed }`: deals `samples` random completions.
+/// - `Auto` with `board.len() < 3`: no exact enumeration path exists for
+///   pre-flop/pre-flop-adjacent boards on CPU, so this falls back to
+///   `MonteCarlo { samples: 10000, seed: 42 }`.
 pub fn evaluate_hand_vs_hand(
     hero: Hand,
     villain: Hand,
@@ -680,6 +817,11 @@ pub fn evaluate_hand_vs_hand(
     }
 }
 
+/// CPU-only equity for one hero hand against a weighted villain [`Range`]:
+/// runs [`evaluate_hand_vs_hand`] against each villain hand (skipping any
+/// that share a card with `hero` or `board`) and combines the results as a
+/// weighted average. `trial_count` on the result is the sum of every
+/// sub-evaluation's trial count.
 pub fn evaluate_hand_vs_range(
     hero: Hand,
     villain_range: Range,
@@ -744,6 +886,11 @@ pub fn evaluate_hand_vs_range(
     }
 }
 
+/// Range-vs-range equity, routed through `backend` (see [`Backend`] for GPU
+/// routing/fallback rules). Thin wrapper over
+/// [`Backend::run_range_evaluation`] — prefer calling that directly (or
+/// [`Backend::run_range_evaluation_batch`] for many cases) if you already
+/// have a `&Backend` and want to avoid the ownership shuffle here.
 pub fn evaluate_range_vs_range(
     hero_range: Range,
     villain_range: Range,
@@ -834,16 +981,19 @@ fn evaluate_range_vs_range_internal(
     }
 }
 
+/// Deals one random 4-card hand from the deck minus `dead_cards`. `rng_seed`
+/// gives a reproducible deal; `None` seeds from OS entropy. For dealing
+/// multiple non-overlapping hands (e.g. hero + villain), prefer
+/// [`random_hands`] over calling this repeatedly — repeated independent
+/// calls reshuffle the whole deck each time and are not guaranteed disjoint.
 pub fn random_hand(dead_cards: &[Card], rng_seed: Option<u64>) -> Hand {
-    let mut deck = Vec::new();
-    for s in Suit::all() {
-        for r in Rank::all() {
-            let card = Card::new(r, s);
-            if !dead_cards.contains(&card) {
-                deck.push(card);
-            }
-        }
-    }
+    random_hands(1, dead_cards, rng_seed).pop().unwrap()
+}
+
+/// Deals `count` non-overlapping 4-card hands from a single shuffle of the deck
+/// (minus `dead_cards`).
+pub fn random_hands(count: usize, dead_cards: &[Card], rng_seed: Option<u64>) -> Vec<Hand> {
+    let mut deck: Vec<Card> = full_deck().into_iter().filter(|c| !dead_cards.contains(c)).collect();
 
     let mut rng = if let Some(seed) = rng_seed {
         Pcg64::seed_from_u64(seed)
@@ -852,7 +1002,9 @@ pub fn random_hand(dead_cards: &[Card], rng_seed: Option<u64>) -> Hand {
     };
 
     deck.shuffle(&mut rng);
-    Hand::new([deck[0], deck[1], deck[2], deck[3]])
+    (0..count)
+        .map(|i| Hand::new([deck[i * 4], deck[i * 4 + 1], deck[i * 4 + 2], deck[i * 4 + 3]]))
+        .collect()
 }
 
 #[cfg(test)]
@@ -1039,5 +1191,125 @@ mod tests {
         if let Some(res) = gpu_res {
             assert!(res.win + res.tie + res.loss > 0.0);
         }
+    }
+
+    #[test]
+    #[ignore]
+    fn test_gpu_preflop_batch_at_scale() {
+        // Reproduces the real `simulation` workload: 256 cases, empty board,
+        // 1000 Monte Carlo samples each, one hand per side.
+        let mut rng_seed = 1u64;
+        let mut cases = Vec::with_capacity(256);
+        for _ in 0..256 {
+            let hands = random_hands(2, &[], Some(rng_seed));
+            rng_seed += 1;
+            let hero_range = Range { hands: vec![(hands[0].clone(), 1.0)] };
+            let villain_range = Range { hands: vec![(hands[1].clone(), 1.0)] };
+            cases.push((hero_range, villain_range, Board::new(vec![]), EvalMode::MonteCarlo { samples: 1000, seed: 42 }));
+        }
+
+        let gpu_results = crate::gpu::run_gpu_range_evaluation_batch(&cases);
+        let zero_count = gpu_results.iter().filter(|r| {
+            matches!(r, Some(res) if res.win == 0.0 && res.tie == 0.0 && res.loss == 0.0)
+        }).count();
+        let none_count = gpu_results.iter().filter(|r| r.is_none()).count();
+        println!("zero-equity results: {zero_count}/256, None results: {none_count}/256");
+        for (i, r) in gpu_results.iter().enumerate().take(5) {
+            println!("case {i}: {r:?}");
+        }
+        assert_eq!(zero_count, 0, "GPU MC batch returned zero equities under real-world load");
+    }
+
+    #[test]
+    #[ignore]
+    fn test_gpu_preflop_mc_matches_ps_eval() {
+        // Fixed hands cross-checked against ps-eval's exhaustive equity:
+        // AsAcKhKd/2h7c3d9s=0.6583, 2s9sJsTs/4c5h8hAc=0.4448,
+        // 7cAcJhTs/5c6c9dTh=0.6144, KsQhJh4h/QcTd8h3h=0.5929,
+        // 2c2h3sKs/4d5cKhTc=0.3855. This guards the lane-splitting math in
+        // the MC branch (see MC_TARGET_PARALLELISM in omaha.wgsl) against
+        // introducing bias, not just against crashing/returning zeros.
+        let pairs: [(&str, &str, f64); 5] = [
+            ("AsAcKhKd", "2h7c3d9s", 0.6583),
+            ("2s9sJsTs", "4c5h8hAc", 0.4448),
+            ("7cAcJhTs", "5c6c9dTh", 0.6144),
+            ("KsQhJh4h", "QcTd8h3h", 0.5929),
+            ("2c2h3sKs", "4d5cKhTc", 0.3855),
+        ];
+        for (hero_str, villain_str, expected_eq) in pairs {
+            let hero = Hand::new([
+                Card::from_str(&hero_str[0..2]).unwrap(),
+                Card::from_str(&hero_str[2..4]).unwrap(),
+                Card::from_str(&hero_str[4..6]).unwrap(),
+                Card::from_str(&hero_str[6..8]).unwrap(),
+            ]);
+            let villain = Hand::new([
+                Card::from_str(&villain_str[0..2]).unwrap(),
+                Card::from_str(&villain_str[2..4]).unwrap(),
+                Card::from_str(&villain_str[4..6]).unwrap(),
+                Card::from_str(&villain_str[6..8]).unwrap(),
+            ]);
+            let hero_range = Range { hands: vec![(hero, 1.0)] };
+            let villain_range = Range { hands: vec![(villain, 1.0)] };
+            let res = crate::gpu::run_gpu_range_evaluation(
+                &hero_range, &villain_range, &Board::new(vec![]),
+                &EvalMode::MonteCarlo { samples: 20000, seed: 7 },
+            ).expect("GPU should be available");
+            let eq = res.win + res.tie / 2.0;
+            let delta = (eq - expected_eq).abs();
+            println!("{} {} gpu={:.4} ps-eval={:.4} delta={:.4}", hero_str, villain_str, eq, expected_eq, delta);
+            assert!(delta < 0.03, "{} vs {}: gpu={:.4} too far from ps-eval={:.4}", hero_str, villain_str, eq, expected_eq);
+        }
+    }
+
+    #[test]
+    #[ignore]
+    fn test_gpu_preflop_batch_concurrent() {
+        // Reproduces simulate_plo_no_flop's real access pattern: many rayon
+        // threads hammering the batch GPU path concurrently.
+        use std::sync::atomic::{AtomicU64, Ordering};
+        let zero_total = std::sync::Arc::new(AtomicU64::new(0));
+        let none_total = std::sync::Arc::new(AtomicU64::new(0));
+        let case_total = std::sync::Arc::new(AtomicU64::new(0));
+
+        let mut handles = Vec::new();
+        for t in 0..8u64 {
+            let zero_total = zero_total.clone();
+            let none_total = none_total.clone();
+            let case_total = case_total.clone();
+            handles.push(std::thread::spawn(move || {
+                for round in 0..5u64 {
+                    let mut rng_seed = 1000 * t + 100 * round + 1;
+                    let mut cases = Vec::with_capacity(256);
+                    for _ in 0..256 {
+                        let hands = random_hands(2, &[], Some(rng_seed));
+                        rng_seed += 1;
+                        let hero_range = Range { hands: vec![(hands[0].clone(), 1.0)] };
+                        let villain_range = Range { hands: vec![(hands[1].clone(), 1.0)] };
+                        cases.push((hero_range, villain_range, Board::new(vec![]), EvalMode::MonteCarlo { samples: 1000, seed: 42 }));
+                    }
+                    let gpu_results = crate::gpu::run_gpu_range_evaluation_batch(&cases);
+                    for r in &gpu_results {
+                        case_total.fetch_add(1, Ordering::Relaxed);
+                        match r {
+                            None => { none_total.fetch_add(1, Ordering::Relaxed); }
+                            Some(res) if res.win == 0.0 && res.tie == 0.0 && res.loss == 0.0 => {
+                                zero_total.fetch_add(1, Ordering::Relaxed);
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }));
+        }
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        let cases = case_total.load(Ordering::Relaxed);
+        let zeros = zero_total.load(Ordering::Relaxed);
+        let nones = none_total.load(Ordering::Relaxed);
+        println!("concurrent: {cases} cases, {zeros} zero-equity, {nones} None (GPU unavailable)");
+        assert_eq!(zeros, 0, "GPU MC batch returned zero equities under concurrent load");
     }
 }

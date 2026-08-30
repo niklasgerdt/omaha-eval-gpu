@@ -1,3 +1,21 @@
+//! `wgpu` compute backend for equity evaluation (`src/omaha.wgsl`).
+//!
+//! The GPU context (`GPU_CONTEXT`) is a lazily-initialized, process-wide
+//! singleton: adapter selection, shader compilation and buffer allocation
+//! happen once, on first use, and are reused by every call. `GPU_LOCK`
+//! serializes access to that shared context — concurrent callers (e.g.
+//! multiple Rayon threads) queue on the mutex rather than racing on the
+//! same buffers; see [`run_gpu_range_evaluation_batch`].
+//!
+//! A single dispatch evaluates up to 256 independent `(hero_range,
+//! villain_range, board, mode)` cases (one GPU workgroup row per case), each
+//! with up to 128 hero hands x 128 villain hands. For river boards (5
+//! cards) the shader enumerates exhaustively; for turn/flop boards (4/3
+//! cards) it enumerates the missing cards exhaustively; for anything with
+//! fewer than 3 known board cards it runs Monte Carlo sampling, with each
+//! pair's samples split across multiple GPU threads (`mc_lanes`) rather
+//! than looped sequentially by one thread — see the module doc in
+//! `src/omaha.wgsl` for why that split exists and how it's sized.
 use crate::{Hand, Board, EvalMode, EquityResult};
 use crate::eval_fast::card_to_index;
 use bytemuck::{Pod, Zeroable};
@@ -101,6 +119,33 @@ struct GpuInput {
     cases: [GpuCaseInput; 256],
 }
 
+// Must match `MC_TARGET_PARALLELISM`/`MC_MAX_LANES`/`mc_lanes` in omaha.wgsl
+// exactly: both sides derive pair_index/lane from the same global_id.x, so
+// the workgroup count computed here has to agree with what the shader
+// assumes when it divides up global_id.x.
+const MC_TARGET_PARALLELISM: u32 = 4096;
+const MC_MAX_LANES: u32 = 64;
+
+/// How many GPU threads should split one pair's Monte Carlo samples between
+/// them, given how many pairs (`hero_count * villain_count`) are already in
+/// the case. Aims for roughly `MC_TARGET_PARALLELISM` total MC threads per
+/// case (many lanes when there's only 1 pair, as in `simulation`'s no-flop
+/// workload; down to 1 lane once the pair count alone already
+/// saturates the target, so range-vs-range cases don't blow up the dispatch
+/// size). Only used for cases with `board_len < 3` — see `omaha.wgsl`.
+fn mc_lanes(pair_count: u32) -> u32 {
+    let raw = MC_TARGET_PARALLELISM / pair_count.max(1);
+    raw.clamp(1, MC_MAX_LANES)
+}
+
+/// Evaluates up to 256 `(hero_range, villain_range, board, mode)` cases in
+/// one GPU dispatch (extra cases beyond 256 are silently ignored — callers
+/// are expected to chunk, as [`crate::Backend::run_range_evaluation_batch`]
+/// does). Returns one result per input case, in order; a `None` means the
+/// GPU wasn't available at all (no adapter) — it does *not* mean "the GPU
+/// ran and found nothing", so callers should fall back to the CPU evaluator
+/// for `None` entries rather than treating them as a valid zero-equity
+/// result.
 pub fn run_gpu_range_evaluation_batch(
     cases: &[(crate::Range, crate::Range, Board, EvalMode)],
 ) -> Vec<Option<EquityResult>> {
@@ -198,13 +243,14 @@ pub fn run_gpu_range_evaluation_batch(
         cpass.set_pipeline(&ctx.pipeline);
         cpass.set_bind_group(0, &bind_group, &[]);
         
-        let mut max_pairs = 1u32;
+        let mut max_effective_pairs = 1u32;
         for i in 0..cases.len().min(256) {
             let case = &gpu_input_struct.cases[i];
-            let pairs = (case.hero_count * case.villain_count) as u32;
-            max_pairs = max_pairs.max(pairs);
+            let pairs = (case.hero_count * case.villain_count).max(1);
+            let lanes = if case.board_len < 3 { mc_lanes(pairs) } else { 1 };
+            max_effective_pairs = max_effective_pairs.max(pairs * lanes);
         }
-        let workgroups_x = (max_pairs + 63) / 64;
+        let workgroups_x = (max_effective_pairs + 63) / 64;
         let workgroups_y = cases.len().min(256) as u32;
         cpass.dispatch_workgroups(workgroups_x.max(1), workgroups_y, 1);
     }
@@ -263,6 +309,9 @@ pub fn run_gpu_range_evaluation_batch(
     results_out
 }
 
+/// Single-case convenience wrapper over [`run_gpu_range_evaluation_batch`].
+/// Prefer the batch form directly when evaluating more than one case — each
+/// call here pays the full dispatch/readback round trip for just one case.
 pub fn run_gpu_range_evaluation(
     hero_range: &crate::Range,
     villain_range: &crate::Range,
@@ -274,6 +323,10 @@ pub fn run_gpu_range_evaluation(
     results.pop().unwrap()
 }
 
+/// Single hand-vs-hand equity on the GPU, as a 1-hand-vs-1-hand
+/// [`run_gpu_range_evaluation`] call. Always returns `None` for `hi_lo`
+/// (Omaha Hi/Lo has no GPU implementation; callers should use the CPU
+/// evaluator instead).
 pub fn run_gpu_evaluation(
     hero: &Hand,
     villain: &Hand,

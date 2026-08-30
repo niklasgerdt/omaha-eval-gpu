@@ -1,3 +1,25 @@
+// Omaha Hi equity evaluator compute shader (see `src/gpu.rs` for the host
+// side that drives this pipeline).
+//
+// One dispatch evaluates up to 256 cases (GpuInput.cases), each an
+// independent hero-range-vs-villain-range-vs-board equity query with up to
+// 128 hands per side. Card indices are 0..51 (rank + suit*13, see
+// `eval_fast::card_to_index`); 255 is the "no card" sentinel used to pad
+// unused board slots.
+//
+// global_id.y selects the case; global_id.x selects a (hero_hand,
+// villain_hand) pair within that case for `board_len == 5`, and for
+// `board_len < 3` is further split into (pair, MC lane) — see `mc_lanes`
+// below and the `is_mc` branch in `main` for why. `board_len` of 3 or 4
+// (flop/turn) enumerates the missing board cards exhaustively instead of
+// sampling, since there are few enough of them (<=946) that exhaustive is
+// both exact and fast.
+//
+// Results accumulate into the shared `results` buffer via atomics, since
+// many invocations (one per pair, or per pair-lane for MC) can write to the
+// same case's 4 result slots (win/tie/loss/total-weight, each scaled by
+// 1000 and truncated to integer for atomic addition) concurrently.
+
 struct GpuCaseInput {
     hero_hands: array<array<u32, 4>, 128>,
     villain_hands: array<array<u32, 4>, 128>,
@@ -204,13 +226,33 @@ fn evaluate_omaha(h0: u32, h1: u32, h2: u32, h3: u32, b0: u32, b1: u32, b2: u32,
     return best;
 }
 
+// Monte Carlo trials for a single pair are split across `lanes` GPU threads
+// instead of one thread looping over every sample, so the sequential work per
+// thread shrinks from `samples` down to roughly `samples / lanes`. `lanes`
+// shrinks as the number of pairs in a case grows, so we don't blow up the
+// dispatch size for large ranges. Must match `mc_lanes` in gpu.rs exactly
+// (same integer arithmetic) since both sides derive pair_index/lane from the
+// same global_id.x.
+const MC_TARGET_PARALLELISM: u32 = 4096u;
+const MC_MAX_LANES: u32 = 64u;
+
+fn mc_lanes(pair_count: u32) -> u32 {
+    let raw = MC_TARGET_PARALLELISM / max(pair_count, 1u);
+    return clamp(raw, 1u, MC_MAX_LANES);
+}
+
 @compute @workgroup_size(64)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let case_idx = global_id.y;
-    let pair_index = global_id.x;
-    
+
     if (case_idx >= 256u) { return; }
-    
+
+    let is_mc = input.cases[case_idx].board_len < 3u;
+    let pair_count = input.cases[case_idx].hero_count * input.cases[case_idx].villain_count;
+    let lanes = select(1u, mc_lanes(pair_count), is_mc);
+    let pair_index = global_id.x / lanes;
+    let lane = global_id.x % lanes;
+
     let hero_idx = pair_index / input.cases[case_idx].villain_count;
     let villain_idx = pair_index % input.cases[case_idx].villain_count;
 
@@ -269,6 +311,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var win = 0.0;
     var tie = 0.0;
     var loss = 0.0;
+    // Fraction of this pair's total weight that this invocation contributes.
+    // 1.0 for the deterministic/exhaustive branches (one thread owns the
+    // whole pair); < 1.0 for MC lanes, where each lane owns a slice of the
+    // samples and the slices sum to 1.0 across all lanes for that pair.
+    var trial_weight = 1.0;
 
     if (input.cases[case_idx].board_len == 5u) {
         let hero_score = evaluate_omaha(hero_h0, hero_h1, hero_h2, hero_h3, b0, b1, b2, b3, b4);
@@ -276,13 +323,104 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         if (hero_score > villain_score) { win = 1.0; }
         else if (hero_score == villain_score) { tie = 1.0; }
         else { loss = 1.0; }
-    } else {
-        // GPU evaluation for boards with < 5 cards is currently disabled in shader
-        // to prevent stack issues and ensure performance. 
-        // CPU fallback should be used.
-        win = 0.0;
-        tie = 0.0;
-        loss = 0.0;
+    } else if (input.cases[case_idx].board_len == 4u) {
+        for (var i = 0u; i < 52u; i++) {
+            if (i == hero_h0 || i == hero_h1 || i == hero_h2 || i == hero_h3) { continue; }
+            if (i == villain_h0 || i == villain_h1 || i == villain_h2 || i == villain_h3) { continue; }
+            if (i == b0 || i == b1 || i == b2 || i == b3) { continue; }
+
+            let hero_score = evaluate_omaha(hero_h0, hero_h1, hero_h2, hero_h3, b0, b1, b2, b3, i);
+            let villain_score = evaluate_omaha(villain_h0, villain_h1, villain_h2, villain_h3, b0, b1, b2, b3, i);
+            if (hero_score > villain_score) { win += 1.0; }
+            else if (hero_score == villain_score) { tie += 1.0; }
+            else { loss += 1.0; }
+        }
+        let total_combos = 52u - 4u - 4u - input.cases[case_idx].board_len; // 40 remaining cards for Turn
+        win = win / f32(total_combos);
+        tie = tie / f32(total_combos);
+        loss = loss / f32(total_combos);
+    } else if (input.cases[case_idx].board_len == 3u) {
+        for (var i = 0u; i < 51u; i++) {
+            if (i == hero_h0 || i == hero_h1 || i == hero_h2 || i == hero_h3) { continue; }
+            if (i == villain_h0 || i == villain_h1 || i == villain_h2 || i == villain_h3) { continue; }
+            if (i == b0 || i == b1 || i == b2) { continue; }
+            for (var j = i + 1u; j < 52u; j++) {
+                if (j == hero_h0 || j == hero_h1 || j == hero_h2 || j == hero_h3) { continue; }
+                if (j == villain_h0 || j == villain_h1 || j == villain_h2 || j == villain_h3) { continue; }
+                if (j == b0 || j == b1 || j == b2) { continue; }
+
+                let hero_score = evaluate_omaha(hero_h0, hero_h1, hero_h2, hero_h3, b0, b1, b2, i, j);
+                let villain_score = evaluate_omaha(villain_h0, villain_h1, villain_h2, villain_h3, b0, b1, b2, i, j);
+                if (hero_score > villain_score) { win += 1.0; }
+                else if (hero_score == villain_score) { tie += 1.0; }
+                else { loss += 1.0; }
+            }
+        }
+        let n = 52u - 4u - 4u - input.cases[case_idx].board_len; // 41 remaining cards for Flop
+        let total_combos = (n * (n - 1u)) / 2u; // 41 * 40 / 2 = 820
+        win = win / f32(total_combos);
+        tie = tie / f32(total_combos);
+        loss = loss / f32(total_combos);
+    } else if (is_mc) {
+        var rng_state = input.cases[case_idx].seed ^ (case_idx * 747796405u) ^ (pair_index * 2891336453u) ^ (lane * 277803737u) ^ 0x9E3779B9u;
+        if (rng_state == 0u) { rng_state = 0xDEADBEEFu; }
+        rng_state = pcg_hash(rng_state);
+
+        var deck = array<u32, 52>();
+        var deck_size = 0u;
+        for (var i = 0u; i < 52u; i++) {
+            if (i == hero_h0 || i == hero_h1 || i == hero_h2 || i == hero_h3) { continue; }
+            if (i == villain_h0 || i == villain_h1 || i == villain_h2 || i == villain_h3) { continue; }
+            var on_board = false;
+            for (var k = 0u; k < input.cases[case_idx].board_len; k++) {
+                if (i == input.cases[case_idx].board[k]) { on_board = true; break; }
+            }
+            if (!on_board) {
+                deck[deck_size] = i;
+                deck_size++;
+            }
+        }
+
+        let missing = 5u - input.cases[case_idx].board_len;
+        let total_samples = max(1u, input.cases[case_idx].samples);
+
+        // This lane owns samples [lane * trials_per_lane, ...) of the total.
+        let trials_per_lane = (total_samples + lanes - 1u) / lanes;
+        let already_done = lane * trials_per_lane;
+        var this_lane_trials = 0u;
+        if (already_done < total_samples) {
+            this_lane_trials = min(trials_per_lane, total_samples - already_done);
+        }
+
+        for (var t = 0u; t < this_lane_trials; t++) {
+            var current_deck = deck;
+            var current_deck_size = deck_size;
+            var final_board = array<u32, 5>();
+            for (var k = 0u; k < input.cases[case_idx].board_len; k++) {
+                final_board[k] = input.cases[case_idx].board[k];
+            }
+
+            for (var k = 0u; k < missing; k++) {
+                let idx = random_u32(&rng_state) % current_deck_size;
+                final_board[input.cases[case_idx].board_len + k] = current_deck[idx];
+                current_deck[idx] = current_deck[current_deck_size - 1u];
+                current_deck_size--;
+            }
+
+            let hero_score = evaluate_omaha(hero_h0, hero_h1, hero_h2, hero_h3, final_board[0], final_board[1], final_board[2], final_board[3], final_board[4]);
+            let villain_score = evaluate_omaha(villain_h0, villain_h1, villain_h2, villain_h3, final_board[0], final_board[1], final_board[2], final_board[3], final_board[4]);
+            if (hero_score > villain_score) { win += 1.0; }
+            else if (hero_score == villain_score) { tie += 1.0; }
+            else { loss += 1.0; }
+        }
+        // Normalize against the pair's *total* sample count (not just this
+        // lane's share), so summing win/tie/loss/trial_weight across all
+        // lanes for this pair reconstructs the same per-pair average the
+        // single-thread version produced.
+        win = win / f32(total_samples);
+        tie = tie / f32(total_samples);
+        loss = loss / f32(total_samples);
+        trial_weight = f32(this_lane_trials) / f32(total_samples);
     }
 
     let scale = 1000u;
@@ -290,7 +428,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     if (win > 0.0) { atomicAdd(&results[offset + 0u], u32(weight * win * f32(scale))); }
     if (tie > 0.0) { atomicAdd(&results[offset + 1u], u32(weight * tie * f32(scale))); }
     if (loss > 0.0) { atomicAdd(&results[offset + 2u], u32(weight * loss * f32(scale))); }
-    atomicAdd(&results[offset + 3u], u32(weight * f32(scale)));
+    atomicAdd(&results[offset + 3u], u32(weight * trial_weight * f32(scale)));
 }
 
 fn pcg_hash(input_seed: u32) -> u32 {
