@@ -108,18 +108,33 @@ The internal CPU evaluator is optimized for high-performance Omaha evaluation.
 - **Parallel Validation**: ~250μs per case on multi-core systems.
 - **Accuracy**: 100% pass rate within 0.1 tolerance for benchmark datasets.
 
-## Milestone Release Pipeline
+## Milestone Release Pipeline (M2.2)
 
-The project follows a strict automated release pipeline. See [docs/MilestoneReleasePipeline.md](docs/MilestoneReleasePipeline.md) for details. 
+The project now features a robust, automated release pipeline to ensure quality and performance.
+- **Automated Workflow**: Using `scripts/milestone.sh` to manage branching, verification, and GitHub releases.
+- **Integrated Verification**: Mandatory accuracy (0.1 tolerance) and performance benchmarking before every release.
+- **Strict Versioning**: Automated tagging and PR management via `gh` CLI.
 
-A helper script is provided to automate verification and releases:
+Usage:
 ```bash
-./scripts/milestone.sh verify
+./scripts/milestone.sh start M3    # Start a new milestone
+./scripts/milestone.sh verify      # Run full test suite and benchmarks
+./scripts/milestone.sh release     # Merge to master, tag, and push
 ```
+
+For details, see [docs/MilestoneReleasePipeline.md](docs/MilestoneReleasePipeline.md).
+
+## Project Structure & Documentation
+
+The repository has been reorganized for better maintainability:
+- `docs/`: Technical specifications, milestone roadmaps, and release notes.
+- `scripts/`: Automation and utility scripts.
+- `data/`: Standardized Pokerstove benchmark datasets (e.g., `pokerstove_full_db.txt`).
 
 ## GPU Acceleration (M2.1 Hardening)
 
 The library features a robust GPU backend powered by `wgpu`. Recent improvements in **M2.1** have focused on:
 - **Synchronization**: Explicit device polling (`wgpu::Maintain::Wait`) to ensure zero-equity race conditions are eliminated.
-- **Memory Safety**: Replaced unsafe pointer arithmetic with safe `bytemuck` and `GpuInput::zeroed()` initialization for GPU buffers.
+- **Memory Safety**: Replaced unsafe pointer arithmetic with safe `bytemuck` and heap-allocated `GpuInput` for GPU buffers.
 - **Batching**: Optimized batch submission for up to 256 cases per GPU call.
+- **Intelligent Routing**: `Backend::Auto` now dynamically routes workloads to CPU or GPU based on the street and workload size.
