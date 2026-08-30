@@ -1,5 +1,19 @@
 # Milestone 3: Intelligent Backend Selection
 
+> **Status update**: the "Street-Based" and "Proposed Thresholds" heuristics
+> below described a plan to gate GPU use behind board length and range-size
+> thresholds, driven by the GPU shader only supporting rivered (5-card)
+> boards at the time this doc was written. That GPU limitation has since
+> been resolved (see docs/PokerHandEvaluator.md §7.4/§7.5): the shader now
+> exhaustively enumerates turn/flop boards and runs Monte Carlo sampling —
+> with each hand pair's samples split across multiple GPU threads instead of
+> one thread per pair — for anything with fewer than 3 known board cards.
+> `Backend::Auto` therefore now tries GPU for every case unconditionally and
+> falls back to CPU per-case only when the GPU is unavailable or a specific
+> case didn't resolve, rather than pre-selecting CPU by street or case size.
+> The size-threshold heuristic proposed below was not implemented as such;
+> this doc is kept for the historical reasoning, not as current behavior.
+
 ## Overview
 Milestone 3 (M3) focuses on optimizing the evaluation pipeline by implementing an intelligent, automatic selection between CPU and GPU backends. This decision is based on the characteristics of the input parameters to maximize throughput and minimize latency.
 

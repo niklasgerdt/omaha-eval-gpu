@@ -52,8 +52,12 @@ Example: `AcAsKh2d` is NOT canonical. Canonical order is `AsAcKh2d`.
 - Each GPU thread evaluates one (board, hero hand, villain hand) triple, or is responsible for one Monte Carlo trial.
 - Batches of trials are uploaded to GPU memory as flat arrays of card indices; results (win/tie/loss flags or scores) are read back and aggregated on CPU.
 - Random number generation for Monte Carlo sampling on GPU uses a parallel-friendly PRNG (e.g., PCG or Xorshift) seeded per-thread deterministically from a master seed for reproducibility.
-- **Current Limitation**: GPU evaluation is currently supported for **rivered boards (exactly 5 cards)** only. Pre-flop, Flop, and Turn evaluations automatically fall back to the optimized CPU backend.
+- **Street coverage**: GPU evaluation covers every street. Rivered boards (5 cards) get one exhaustive comparison per hand pair; turn/flop boards (4/3 cards) enumerate the missing board cards exhaustively; boards with fewer than 3 known cards use Monte Carlo sampling, with each hand pair's samples split across multiple GPU threads (see §7.5) rather than one thread looping over all of them. Omaha Hi/Lo has no GPU implementation and always runs on CPU.
 - **M2.1 Hardening**: The GPU backend has been hardened to resolve zero-equity results by adding explicit device polling before buffer writes and using safe memory initialization patterns.
+
+### 7.5 GPU Monte Carlo Lane Splitting
+
+For a hand pair with fewer than 3 known board cards, one GPU thread running all `samples` trials sequentially is a poor use of the GPU — for `simulation`'s no-flop workload (1 hero hand vs. 1 villain hand per case), it means exactly 1 of the up to 128x128 GPU threads available per case does any work at all. Instead, each pair's samples are split across `mc_lanes(pair_count)` threads (`src/gpu.rs`), each running roughly `samples / lanes` trials with its own RNG stream (seeded from the case seed, case index, pair index and lane index) and contributing a `1/lanes`-sized share of the pair's total weight to the shared atomic accumulator (`src/omaha.wgsl`). `lanes` shrinks as `pair_count` grows (target ~4096 total MC threads per case, capped at 64 lanes/pair) so range-vs-range cases with many pairs don't blow up the dispatch size — those already get parallelism from the pair dimension. The host-side (`mc_lanes` in `gpu.rs`) and shader-side (`mc_lanes` in `omaha.wgsl`) formulas must stay identical, since both derive `pair_index`/`lane` from the same `global_id.x` and the host computes the dispatch's workgroup count from the same arithmetic the shader uses to interpret it.
 
 ---
 
@@ -182,6 +186,6 @@ Note: The internal evaluator is now highly competitive with `ps-eval` for single
 ## 15. Milestones
 1. **M1 (COMPLETED)** — Core types, high-performance CPU/GPU evaluators, Omaha Hi/Lo support, range-vs-range calculations, parallel validation bench, and comprehensive documentation.
 2. **M2.1 (COMPLETED)** — Hardened GPU backend with improved synchronization and memory safety. Resolved intermittent zero-equity results.
-3. **M3** — Intelligent backend selection (automatic CPU/GPU switching based on workload), multi-node support, and enhanced range weighting.
+3. **M3 (Backend selection: partially completed)** — `Backend::Auto` tries GPU first and falls back to CPU per-case (see §7.4/§7.5); the GPU now covers every street via exhaustive turn/flop enumeration and lane-split Monte Carlo for boards under 3 cards, so the originally proposed street/case-size *selection heuristic* (docs/Milestone3.md) is superseded — GPU is attempted unconditionally rather than gated by a threshold. Multi-node support and enhanced range weighting remain open.
 4. **M4** — Omaha Hi/Lo capability and comprehensive validation against split-pot test sets.
 5. **M5** — Web-based visualization tools and distributed evaluation.
