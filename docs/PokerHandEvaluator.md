@@ -68,9 +68,20 @@ Example: `AcAsKh2d` is NOT canonical. Canonical order is `AsAcKh2d`.
 - `EvalMode::{Auto, Exhaustive, MonteCarlo { samples: u64, seed: u64 }}`
 - `Backend::{Auto, Cpu, Cuda, Vulkan, Metal}`
 
+9. Validation and Release Pipeline
+
+To ensure quality and performance, all milestone releases follow a strict automated pipeline.
+
+1.  **Branching**: Each milestone is developed on a `milestone/MX` branch using `gh cli`.
+2.  **Accuracy**: Must achieve a 100% pass rate against the Pokerstove dataset with 0.1 tolerance.
+3.  **Performance**: Must meet benchmark speed targets derived from `docs/test_results.log`.
+4.  **Merge**: Merged to `master` and tagged using `gh cli` after all checks pass.
+
+For the full pipeline specification, see [docs/MilestoneReleasePipeline.md](MilestoneReleasePipeline.md).
+
 ---
 
-## 9. Validation Plan Against Pokerstove Dataset
+## 10. Validation Plan Against Pokerstove Dataset
 
 1. **Input format**: Define an agreed schema for the 1,000,000-sample checklist (e.g., CSV/JSON with hero hand, villain hand/range, board, expected win%/tie%/lose%).
 2. **Harness**: A `validation` binary/test target loads the checklist, runs each case through the library (choosing enumeration or Monte Carlo per the recorded mode/sample size), and compares results.
