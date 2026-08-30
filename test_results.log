@@ -1,0 +1,828 @@
+--- Validation Run: 2026-08-30T02:05:38.002132+03:00 ---
+Input: data/test_results_100.txt, Backend: Metal, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 4
+Overall Pass rate: 100.00%
+Total time: 2.710112875s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=27.369729ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=27.369729ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T02:05:35.055192+03:00 ---
+Input: data/test_results_100.txt, Backend: Cpu, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 4
+Overall Pass rate: 100.00%
+Total time: 662.7525ms
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=5.154414ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=122.035422ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T02:04:39.238373+03:00 ---
+Input: data/test_results_100.txt, Backend: Metal, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 4
+Overall Pass rate: 100.00%
+Total time: 2.762324791s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=27.897944ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=27.897944ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T02:04:36.229212+03:00 ---
+Input: data/test_results_100.txt, Backend: Cpu, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 4
+Overall Pass rate: 100.00%
+Total time: 897.1835ms
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=7.540027ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=161.314453ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T01:51:36.122028+03:00 ---
+Input: data/test_results_db.txt, Backend: Cpu, Mode: Auto
+Total cases: 246402, Passed: 246401, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 65.892637416s
+
+Breakdown by query type:
+  Flop      : Count=246401, Pass Rate=100.00%, Avg Time=2.933706ms
+  Turn      : Count=1   , Pass Rate=  0.00%, Avg Time=161.916µs
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T01:50:26.575304+03:00 ---
+Input: data/test_results_100.txt, Backend: Metal, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 4
+Overall Pass rate: 100.00%
+Total time: 2.9424435s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=29.715555ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=29.715555ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T01:49:38.121351+03:00 ---
+Input: data/test_results_100.txt, Backend: Cpu, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 4
+Overall Pass rate: 100.00%
+Total time: 636.148958ms
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=4.744241ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=110.416474ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T01:49:31.134641+03:00 ---
+Input: data/test_results_100.txt, Backend: Metal, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 4
+Overall Pass rate: 100.00%
+Total time: 5.167400875s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=72.774684ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=86.574303ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T01:17:54.354699+03:00 ---
+Input: data/test_results_100.txt, Backend: Cpu, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 4
+Overall Pass rate: 100.00%
+Total time: 609.737834ms
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=4.815559ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=111.253947ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T01:17:50.388270+03:00 ---
+Input: data/test_results_100.txt, Backend: Metal, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 4
+Overall Pass rate: 100.00%
+Total time: 5.119408667s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=49.860847ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=53.606836ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T01:17:41.629430+03:00 ---
+Input: data/test_results_10.txt, Backend: Metal, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 299.007583ms
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=29.867975ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T01:15:12.823288+03:00 ---
+Input: data/test_results_100.txt, Backend: Metal, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 5
+Overall Pass rate: 100.00%
+Total time: 124.771474167s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=15.247702817s
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=11.608964433s
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T01:13:01.888673+03:00 ---
+Input: data/test_results_10.txt, Backend: Metal, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 2.216833292s
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=1.200852154s
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T01:12:39.009263+03:00 ---
+Input: data/test_results_10.txt, Backend: Metal, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 1.271453958s
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=853.213796ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T00:59:21.028123+03:00 ---
+Input: data/test_results_100.txt, Backend: Metal, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 5
+Overall Pass rate: 100.00%
+Total time: 108.969198125s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=12.5110064s
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=12.345898869s
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T00:57:19.546086+03:00 ---
+Input: data/test_results_10.txt, Backend: Metal, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 1.225147s
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=933.796062ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T00:44:28.706381+03:00 ---
+Input: data/test_results_db.txt, Backend: Cpu, Mode: Auto
+Total cases: 246402, Passed: 246401, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 67.134236625s
+
+Breakdown by query type:
+  Flop      : Count=246401, Pass Rate=100.00%, Avg Time=2.960735ms
+  Turn      : Count=1   , Pass Rate=  0.00%, Avg Time=68.792µs
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T00:41:51.585092+03:00 ---
+Input: data/test_results_10.txt, Backend: Metal, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 1.528647292s
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=1.17709472s
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T00:41:41.831125+03:00 ---
+Input: data/test_results_100.txt, Backend: Metal, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 5
+Overall Pass rate: 100.00%
+Total time: 108.973281666s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=11.008530992s
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=13.658995455s
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T00:38:36.060691+03:00 ---
+Input: data/test_results_100.txt, Backend: Metal, Mode: Auto
+Total cases: 95, Passed: 50, Skipped: 5
+Overall Pass rate: 52.63%
+Total time: 115.233688958s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=  0.00%, Avg Time=12.530131647s
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=13.58502021s
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T00:20:29.075057+03:00 ---
+Input: data/test_gpu_river.txt, Backend: Metal, Mode: Auto
+Total cases: 3, Passed: 1, Skipped: 0
+Overall Pass rate: 33.33%
+Total time: 144.443125ms
+
+Breakdown by query type:
+  River     : Count=3   , Pass Rate= 33.33%, Avg Time=143.180763ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T00:19:40.205402+03:00 ---
+Input: data/test_results_10.txt, Backend: Metal, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 9.118125ms
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=5.311966ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T00:19:07.753469+03:00 ---
+Input: data/test_results_100.txt, Backend: Metal, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 5
+Overall Pass rate: 100.00%
+Total time: 673.515625ms
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=5.112616ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=124.567465ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T00:18:58.210744+03:00 ---
+Input: data/test_results_10.txt, Backend: Metal, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 8.824458ms
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=4.687312ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T00:18:07.483260+03:00 ---
+Input: data/test_results_db.txt, Backend: Metal, Mode: Auto
+Total cases: 246402, Passed: 246401, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 61.24770375s
+
+Breakdown by query type:
+  Flop      : Count=246401, Pass Rate=100.00%, Avg Time=2.68686ms
+  Turn      : Count=1   , Pass Rate=  0.00%, Avg Time=71.417µs
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T00:16:05.369744+03:00 ---
+Input: data/test_results_10.txt, Backend: Cpu, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 10.061667ms
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=5.219245ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T00:12:27.108456+03:00 ---
+Input: test_results_db.txt, Backend: Auto, Mode: Auto
+Total cases: 246402, Passed: 246401, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 59.544614542s
+
+Breakdown by query type:
+  Flop      : Count=246401, Pass Rate=100.00%, Avg Time=2.653692ms
+  Turn      : Count=1   , Pass Rate=  0.00%, Avg Time=141.083µs
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T00:11:24.072390+03:00 ---
+Input: test_results_100.txt, Backend: Cpu, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 5
+Overall Pass rate: 100.00%
+Total time: 545.654666ms
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=4.189861ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=101.635911ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T00:11:20.061332+03:00 ---
+Input: test_results_100.txt, Backend: Auto, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 5
+Overall Pass rate: 100.00%
+Total time: 556.502167ms
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=4.598535ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=101.097495ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T00:11:06.525201+03:00 ---
+Input: test_results_100.txt, Backend: Auto, Mode: Auto
+Total cases: 95, Passed: 4, Skipped: 5
+Overall Pass rate: 4.21%
+Total time: 115.906292ms
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=  8.89%, Avg Time=13.266121ms
+  Pre-flop  : Count=50  , Pass Rate=  0.00%, Avg Time=12.962106ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T00:10:47.877115+03:00 ---
+Input: test_results_100.txt, Backend: Auto, Mode: Auto
+Total cases: 95, Passed: 8, Skipped: 5
+Overall Pass rate: 8.42%
+Total time: 243.861791ms
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate= 13.33%, Avg Time=18.233985ms
+  Pre-flop  : Count=50  , Pass Rate=  4.00%, Avg Time=25.702822ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T00:09:08.630795+03:00 ---
+Input: test_results_db.txt, Backend: Auto, Mode: Auto
+Total cases: 246402, Passed: 246401, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 60.403483875s
+
+Breakdown by query type:
+  Flop      : Count=246401, Pass Rate=100.00%, Avg Time=2.692313ms
+  Turn      : Count=1   , Pass Rate=  0.00%, Avg Time=63.416µs
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T00:07:17.996842+03:00 ---
+Input: test_results_db.txt, Backend: Auto, Mode: Auto
+Total cases: 246402, Passed: 246401, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 61.333692292s
+
+Breakdown by query type:
+  Flop      : Count=246401, Pass Rate=100.00%, Avg Time=2.693496ms
+  Turn      : Count=1   , Pass Rate=  0.00%, Avg Time=63.209µs
+--------------------------------------------------
+
+--- Validation Run: 2026-08-30T00:06:12.915114+03:00 ---
+Input: test_results_db.txt, Backend: Cpu, Mode: Auto
+Total cases: 246402, Passed: 246401, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 61.391423542s
+
+Breakdown by query type:
+  Flop      : Count=246401, Pass Rate=100.00%, Avg Time=2.734129ms
+  Turn      : Count=1   , Pass Rate=  0.00%, Avg Time=60.042µs
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:49:41.967356+03:00 ---
+Input: test_results_100.txt, Backend: Cpu, Mode: MonteCarlo { samples: 10000, seed: 42 }
+Total cases: 95, Passed: 95, Skipped: 5
+Overall Pass rate: 100.00%
+Total time: 4.646530333s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=31.556737ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=64.51726ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:49:36.842450+03:00 ---
+Input: test_results_100.txt, Backend: Cpu, Mode: MonteCarlo { samples: 100000, seed: 42 }
+Total cases: 95, Passed: 95, Skipped: 5
+Overall Pass rate: 100.00%
+Total time: 46.811969125s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=314.432393ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=653.229505ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:48:19.292569+03:00 ---
+Input: test_results_100.txt, Backend: Cpu, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 5
+Overall Pass rate: 100.00%
+Total time: 18.761522666s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=2.414046ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=64.267538ms
+
+Comparison with ps-eval (34 cases):
+  ps-eval Avg Time: 454.08506ms
+  Internal Avg Time (comp): 18.505814ms
+  Internal Overall Avg Time: 34.968515ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:48:00.046789+03:00 ---
+Input: test_results_100.txt, Backend: Cpu, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 5
+Overall Pass rate: 100.00%
+Total time: 18.537003791s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=2.522504ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=63.776221ms
+
+Comparison with ps-eval (34 cases):
+  ps-eval Avg Time: 448.05825ms
+  Internal Avg Time (comp): 18.171557ms
+  Internal Overall Avg Time: 34.761303ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:45:53.458919+03:00 ---
+Input: test_results_100.txt, Backend: Cpu, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 5
+Overall Pass rate: 100.00%
+Total time: 18.672476s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=2.399114ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=64.007294ms
+
+Comparison with ps-eval (34 cases):
+  ps-eval Avg Time: 451.873998ms
+  Internal Avg Time (comp): 18.241308ms
+  Internal Overall Avg Time: 34.824472ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:45:34.553304+03:00 ---
+Input: test_results_100.txt, Backend: Cpu, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 5
+Overall Pass rate: 100.00%
+Total time: 18.684727333s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=2.390368ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=63.863284ms
+
+Comparison with ps-eval (34 cases):
+  ps-eval Avg Time: 452.448072ms
+  Internal Avg Time (comp): 18.4005ms
+  Internal Overall Avg Time: 34.744535ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:45:00.946955+03:00 ---
+Input: test_results_100.txt, Backend: Cpu, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 5
+Overall Pass rate: 100.00%
+Total time: 3.286182083s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=2.410065ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=63.547611ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:44:57.454281+03:00 ---
+Input: test_results_100.txt, Backend: Cpu, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 5
+Overall Pass rate: 100.00%
+Total time: 3.24498125s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=2.359116ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=62.76568ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:44:03.862983+03:00 ---
+Input: test_results_100.txt, Backend: Cpu, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 5
+Overall Pass rate: 100.00%
+Total time: 3.267258833s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=2.407339ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=63.165916ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:40:39.842683+03:00 ---
+Input: test_results_10.txt, Backend: Cpu, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 54.688375ms
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=3.856229ms
+
+Comparison with ps-eval (4 cases):
+  ps-eval Avg Time: 2.757583ms
+  Internal Avg Time (comp): 1.824573ms
+  Internal Overall Avg Time: 3.856229ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:40:33.136943+03:00 ---
+Input: test_results_100.txt, Backend: Auto, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 5
+Overall Pass rate: 100.00%
+Total time: 18.933406916s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=2.433074ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=65.375133ms
+
+Comparison with ps-eval (34 cases):
+  ps-eval Avg Time: 457.48265ms
+  Internal Avg Time (comp): 18.71128ms
+  Internal Overall Avg Time: 35.560474ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:40:01.283633+03:00 ---
+Input: test_results_100.txt, Backend: Cpu, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 5
+Overall Pass rate: 100.00%
+Total time: 18.694756041s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=2.392309ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=64.195433ms
+
+Comparison with ps-eval (34 cases):
+  ps-eval Avg Time: 452.254534ms
+  Internal Avg Time (comp): 18.283923ms
+  Internal Overall Avg Time: 34.920269ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:39:16.110793+03:00 ---
+Input: test_results_100.txt, Backend: Auto, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 5
+Overall Pass rate: 100.00%
+Total time: 18.923854042s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=2.399565ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=64.636394ms
+
+Comparison with ps-eval (34 cases):
+  ps-eval Avg Time: 458.333693ms
+  Internal Avg Time: 35.155791ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:38:44.140067+03:00 ---
+Input: test_results_100.txt, Backend: Cpu, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 5
+Overall Pass rate: 100.00%
+Total time: 18.7384895s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=2.40218ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=64.494776ms
+
+Comparison with ps-eval (34 cases):
+  ps-eval Avg Time: 453.089275ms
+  Internal Avg Time: 35.082494ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:37:30.835819+03:00 ---
+Input: test_results_10.txt, Backend: Cpu, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 39.020042ms
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=3.879579ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:37:14.197018+03:00 ---
+Input: test_results_100.txt, Backend: Cpu, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 5
+Overall Pass rate: 100.00%
+Total time: 3.411364458s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=2.457101ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=66.000925ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:36:52.066394+03:00 ---
+Input: test_results_100.txt, Backend: Cpu, Mode: Auto
+Total cases: 95, Passed: 92, Skipped: 5
+Overall Pass rate: 96.84%
+Total time: 3.425411875s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate= 93.33%, Avg Time=2.472313ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=66.267029ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:36:24.173281+03:00 ---
+Input: test_results_100.txt, Backend: Cpu, Mode: Auto
+Total cases: 95, Passed: 92, Skipped: 5
+Overall Pass rate: 96.84%
+Total time: 3.32452225s
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate= 93.33%, Avg Time=2.412597ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=64.305395ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:35:15.827242+03:00 ---
+Input: test_results_100.txt, Backend: Cpu, Mode: Auto
+Total cases: 87, Passed: 86, Skipped: 13
+Overall Pass rate: 98.85%
+Total time: 3.039326458s
+
+Breakdown by query type:
+  Flop      : Count=40  , Pass Rate= 97.50%, Avg Time=2.411463ms
+  Pre-flop  : Count=47  , Pass Rate=100.00%, Avg Time=62.602429ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:33:39.776129+03:00 ---
+Input: test_results_10.txt, Backend: Auto, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 49.23775ms
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=3.943266ms
+
+Comparison with ps-eval (4 cases):
+  ps-eval Avg Time: 2.428208ms
+  Internal Avg Time: 3.943266ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:33:39.523346+03:00 ---
+Input: test_results_10.txt, Backend: Cpu, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 50.220583ms
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=3.862658ms
+
+Comparison with ps-eval (4 cases):
+  ps-eval Avg Time: 2.826854ms
+  Internal Avg Time: 3.862658ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:33:30.578370+03:00 ---
+Input: test_results_100.txt, Backend: Auto, Mode: Auto
+Total cases: 87, Passed: 86, Skipped: 13
+Overall Pass rate: 98.85%
+Total time: 18.284806667s
+
+Breakdown by query type:
+  Flop      : Count=40  , Pass Rate= 97.50%, Avg Time=2.372935ms
+  Pre-flop  : Count=47  , Pass Rate=100.00%, Avg Time=61.187609ms
+
+Comparison with ps-eval (34 cases):
+  ps-eval Avg Time: 450.391033ms
+  Internal Avg Time: 34.14638ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:32:33.693665+03:00 ---
+Input: test_results_100.txt, Backend: Cpu, Mode: Auto
+Total cases: 87, Passed: 86, Skipped: 13
+Overall Pass rate: 98.85%
+Total time: 2.991025959s
+
+Breakdown by query type:
+  Flop      : Count=40  , Pass Rate= 97.50%, Avg Time=2.370184ms
+  Pre-flop  : Count=47  , Pass Rate=100.00%, Avg Time=61.607132ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:26:42.863176+03:00 ---
+Input: test_results_100.txt, Backend: Cpu, Mode: Auto
+Total cases: 87, Passed: 44, Skipped: 13
+Overall Pass rate: 50.57%
+Total time: 3.100676125s
+
+Breakdown by query type:
+  Flop      : Count=40  , Pass Rate= 95.00%, Avg Time=2.46167ms
+  Pre-flop  : Count=47  , Pass Rate= 12.77%, Avg Time=63.850961ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:26:05.201197+03:00 ---
+Input: test_results_10.txt, Backend: Cpu, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 50.43425ms
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=3.897837ms
+
+Comparison with ps-eval (4 cases):
+  ps-eval Avg Time: 2.783135ms
+  Internal Avg Time: 3.897837ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:25:53.488555+03:00 ---
+Input: test_results_10.txt, Backend: Cpu, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 49.399333ms
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=3.805204ms
+
+Comparison with ps-eval (4 cases):
+  ps-eval Avg Time: 2.768822ms
+  Internal Avg Time: 3.805204ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:25:15.008252+03:00 ---
+Input: test_results_10.txt, Backend: Cpu, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 801.793417ms
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=78.853504ms
+
+Comparison with ps-eval (4 cases):
+  ps-eval Avg Time: 3.175197ms
+  Internal Avg Time: 78.853504ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:23:56.716560+03:00 ---
+Input: test_results_10.txt, Backend: Auto, Mode: Auto
+Total cases: 10, Passed: 1, Skipped: 0
+Overall Pass rate: 10.00%
+Total time: 242.941542ms
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate= 10.00%, Avg Time=22.924404ms
+
+Comparison with ps-eval (4 cases):
+  ps-eval Avg Time: 3.245364ms
+  Internal Avg Time: 22.924404ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:18:42.341841+03:00 ---
+Input: test_results_10.txt, Backend: Auto, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 1.437999208s
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=142.66365ms
+
+Comparison with ps-eval (4 cases):
+  ps-eval Avg Time: 2.743281ms
+  Internal Avg Time: 142.66365ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:18:35.710344+03:00 ---
+Input: test_results_10.txt, Backend: Cpu, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 1.721462334s
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=170.307729ms
+
+Comparison with ps-eval (4 cases):
+  ps-eval Avg Time: 4.426541ms
+  Internal Avg Time: 170.307729ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:14:46.771760+03:00 ---
+Input: test_results_10.txt, Backend: Cpu, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 6.23229325s
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=621.87255ms
+
+Comparison with ps-eval (4 cases):
+  ps-eval Avg Time: 3.149166ms
+  Internal Avg Time: 621.87255ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:12:28.459205+03:00 ---
+Input: test_results_10.txt, Backend: Auto, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 6.4134555s
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=641.304508ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:12:21.792864+03:00 ---
+Input: test_results_10.txt, Backend: Vulkan, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 6.402817625s
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=640.245958ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:12:15.142603+03:00 ---
+Input: test_results_10.txt, Backend: Cuda, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 6.477043333s
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=647.669179ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:12:08.409064+03:00 ---
+Input: test_results_10.txt, Backend: Metal, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 6.419508125s
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=641.91522ms
+--------------------------------------------------
+
+--- Validation Run: 2026-08-29T23:12:01.728907+03:00 ---
+Input: test_results_10.txt, Backend: Cpu, Mode: Auto
+Total cases: 10, Passed: 10, Skipped: 0
+Overall Pass rate: 100.00%
+Total time: 6.525897542s
+
+Breakdown by query type:
+  Flop      : Count=10  , Pass Rate=100.00%, Avg Time=652.5305ms
+--------------------------------------------------
+
