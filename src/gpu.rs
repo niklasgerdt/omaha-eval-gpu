@@ -109,8 +109,7 @@ pub fn run_gpu_range_evaluation_batch(
         None => return vec![None; cases.len()],
     };
 
-    let mut gpu_input = vec![0u8; std::mem::size_of::<GpuInput>()];
-    let cases_ptr = gpu_input.as_mut_ptr() as *mut GpuCaseInput;
+    let mut gpu_input_struct = GpuInput::zeroed();
 
     let mut trial_counts = Vec::with_capacity(256);
     let mut modes = Vec::with_capacity(256);
@@ -134,8 +133,7 @@ pub fn run_gpu_range_evaluation_batch(
             _ => mode.clone(),
         };
 
-        let case_input = unsafe { &mut *cases_ptr.add(idx) };
-        *case_input = GpuCaseInput::zeroed();
+        let case_input = &mut gpu_input_struct.cases[idx];
         case_input.hero_count = hero_count as u32;
         case_input.villain_count = villain_count as u32;
         case_input.board = {
@@ -177,7 +175,8 @@ pub fn run_gpu_range_evaluation_batch(
 
     let _lock = GPU_LOCK.lock().unwrap();
 
-    ctx.queue.write_buffer(&ctx.input_buffer, 0, &gpu_input);
+    ctx.device.poll(wgpu::Maintain::Wait);
+    ctx.queue.write_buffer(&ctx.input_buffer, 0, bytemuck::bytes_of(&gpu_input_struct));
     ctx.queue.write_buffer(&ctx.results_buffer, 0, bytemuck::cast_slice(&[0u32; 1024]));
 
     let bind_group_layout = ctx.pipeline.get_bind_group_layout(0);
@@ -201,7 +200,7 @@ pub fn run_gpu_range_evaluation_batch(
         
         let mut max_pairs = 1u32;
         for i in 0..cases.len().min(256) {
-            let case = unsafe { &*cases_ptr.add(i) };
+            let case = &gpu_input_struct.cases[i];
             let pairs = (case.hero_count * case.villain_count) as u32;
             max_pairs = max_pairs.max(pairs);
         }
