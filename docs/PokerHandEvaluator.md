@@ -171,4 +171,5 @@ Note: The internal evaluator is now highly competitive with `ps-eval` for single
 ## 15. Milestones
 1. **M1 (COMPLETED)** — Core types, high-performance CPU/GPU evaluators, Omaha Hi/Lo support, range-vs-range calculations, parallel validation bench, and comprehensive documentation.
 2. **M2.1 (COMPLETED)** — Hardened GPU backend with improved synchronization and memory safety. Resolved intermittent zero-equity results.
-3. **M2.2** — Distributed evaluation (multi-node support), enhanced range weighting, and web-based visualization tools.
+3. **M3** — Intelligent backend selection (automatic CPU/GPU switching based on workload), multi-node support, and enhanced range weighting.
+4. **M4** — Web-based visualization tools and distributed evaluation.
