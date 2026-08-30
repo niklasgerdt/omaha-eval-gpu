@@ -108,6 +108,15 @@ The internal CPU evaluator is optimized for high-performance Omaha evaluation.
 - **Parallel Validation**: ~250μs per case on multi-core systems.
 - **Accuracy**: 100% pass rate within 0.1 tolerance for benchmark datasets.
 
+## Milestone Release Pipeline
+
+The project follows a strict automated release pipeline. See [docs/MilestoneReleasePipeline.md](docs/MilestoneReleasePipeline.md) for details. 
+
+A helper script is provided to automate verification and releases:
+```bash
+./scripts/milestone.sh verify
+```
+
 ## GPU Acceleration (M2.1 Hardening)
 
 The library features a robust GPU backend powered by `wgpu`. Recent improvements in **M2.1** have focused on:

@@ -109,7 +109,7 @@ pub fn run_gpu_range_evaluation_batch(
         None => return vec![None; cases.len()],
     };
 
-    let mut gpu_input_struct = GpuInput::zeroed();
+    let mut gpu_input_struct = Box::new(GpuInput::zeroed());
 
     let mut trial_counts = Vec::with_capacity(256);
     let mut modes = Vec::with_capacity(256);
@@ -176,7 +176,7 @@ pub fn run_gpu_range_evaluation_batch(
     let _lock = GPU_LOCK.lock().unwrap();
 
     ctx.device.poll(wgpu::Maintain::Wait);
-    ctx.queue.write_buffer(&ctx.input_buffer, 0, bytemuck::bytes_of(&gpu_input_struct));
+    ctx.queue.write_buffer(&ctx.input_buffer, 0, bytemuck::bytes_of(gpu_input_struct.as_ref()));
     ctx.queue.write_buffer(&ctx.results_buffer, 0, bytemuck::cast_slice(&[0u32; 1024]));
 
     let bind_group_layout = ctx.pipeline.get_bind_group_layout(0);

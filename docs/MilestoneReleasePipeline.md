@@ -95,3 +95,26 @@ Based on the `docs/test_results.log` (Run: 2026-08-30T02:05:35), the following b
 | Overall (DB) | CPU | 267μs/case | < 250μs/case |
 
 *\*Note: CPU targets are set aggressively based on the 246k case database run where average Flop time was 2.93ms.*
+
+---
+
+## 5. Automation Script
+
+To simplify the pipeline, a helper script is provided at `scripts/milestone.sh`.
+
+### 5.1 Usage
+
+**Starting a new milestone:**
+```bash
+./scripts/milestone.sh start M3
+```
+
+**Running verification (tests, accuracy, benchmarks):**
+```bash
+./scripts/milestone.sh verify
+```
+
+**Releasing a milestone (PR, merge, tag):**
+```bash
+./scripts/milestone.sh release
+```

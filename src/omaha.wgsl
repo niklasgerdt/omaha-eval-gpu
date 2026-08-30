@@ -276,89 +276,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         if (hero_score > villain_score) { win = 1.0; }
         else if (hero_score == villain_score) { tie = 1.0; }
         else { loss = 1.0; }
-    } else if (input.cases[case_idx].board_len == 4u) {
-        for (var i = 0u; i < 52u; i++) {
-            if (i == hero_h0 || i == hero_h1 || i == hero_h2 || i == hero_h3) { continue; }
-            if (i == villain_h0 || i == villain_h1 || i == villain_h2 || i == villain_h3) { continue; }
-            if (i == b0 || i == b1 || i == b2 || i == b3) { continue; }
-
-            let hero_score = evaluate_omaha(hero_h0, hero_h1, hero_h2, hero_h3, b0, b1, b2, b3, i);
-            let villain_score = evaluate_omaha(villain_h0, villain_h1, villain_h2, villain_h3, b0, b1, b2, b3, i);
-            if (hero_score > villain_score) { win += 1.0; }
-            else if (hero_score == villain_score) { tie += 1.0; }
-            else { loss += 1.0; }
-        }
-        let total_combos = 52u - 4u - 4u - input.cases[case_idx].board_len; // 40 remaining cards for Turn
-        win = win / f32(total_combos);
-        tie = tie / f32(total_combos);
-        loss = loss / f32(total_combos);
-    } else if (input.cases[case_idx].board_len == 3u) {
-        for (var i = 0u; i < 51u; i++) {
-            if (i == hero_h0 || i == hero_h1 || i == hero_h2 || i == hero_h3) { continue; }
-            if (i == villain_h0 || i == villain_h1 || i == villain_h2 || i == villain_h3) { continue; }
-            if (i == b0 || i == b1 || i == b2) { continue; }
-            for (var j = i + 1u; j < 52u; j++) {
-                if (j == hero_h0 || j == hero_h1 || j == hero_h2 || j == hero_h3) { continue; }
-                if (j == villain_h0 || j == villain_h1 || j == villain_h2 || j == villain_h3) { continue; }
-                if (j == b0 || j == b1 || j == b2) { continue; }
-
-                let hero_score = evaluate_omaha(hero_h0, hero_h1, hero_h2, hero_h3, b0, b1, b2, i, j);
-                let villain_score = evaluate_omaha(villain_h0, villain_h1, villain_h2, villain_h3, b0, b1, b2, i, j);
-                if (hero_score > villain_score) { win += 1.0; }
-                else if (hero_score == villain_score) { tie += 1.0; }
-                else { loss += 1.0; }
-            }
-        }
-        let n = 52u - 4u - 4u - input.cases[case_idx].board_len; // 41 remaining cards for Flop
-        let total_combos = (n * (n - 1u)) / 2u; // 41 * 40 / 2 = 820
-        win = win / f32(total_combos);
-        tie = tie / f32(total_combos);
-        loss = loss / f32(total_combos);
-    } else if (input.cases[case_idx].board_len < 3u || input.cases[case_idx].mode == 1u) {
-        var rng_state = input.cases[case_idx].seed ^ pair_index;
-        if (rng_state == 0u) { rng_state = 0xDEADBEEFu; }
-
-        var deck = array<u32, 52>();
-        var deck_size = 0u;
-        for (var i = 0u; i < 52u; i++) {
-            if (i == hero_h0 || i == hero_h1 || i == hero_h2 || i == hero_h3) { continue; }
-            if (i == villain_h0 || i == villain_h1 || i == villain_h2 || i == villain_h3) { continue; }
-            var on_board = false;
-            for (var k = 0u; k < input.cases[case_idx].board_len; k++) {
-                if (i == input.cases[case_idx].board[k]) { on_board = true; break; }
-            }
-            if (!on_board) {
-                deck[deck_size] = i;
-                deck_size++;
-            }
-        }
-
-        let missing = 5u - input.cases[case_idx].board_len;
-        let trials = max(1u, input.cases[case_idx].samples);
-        for (var t = 0u; t < trials; t++) {
-            var current_deck = deck;
-            var current_deck_size = deck_size;
-            var final_board = array<u32, 5>();
-            for (var k = 0u; k < input.cases[case_idx].board_len; k++) {
-                final_board[k] = input.cases[case_idx].board[k];
-            }
-
-            for (var k = 0u; k < missing; k++) {
-                let idx = random_u32(&rng_state) % current_deck_size;
-                final_board[input.cases[case_idx].board_len + k] = current_deck[idx];
-                current_deck[idx] = current_deck[current_deck_size - 1u];
-                current_deck_size--;
-            }
-
-            let hero_score = evaluate_omaha(hero_h0, hero_h1, hero_h2, hero_h3, final_board[0], final_board[1], final_board[2], final_board[3], final_board[4]);
-            let villain_score = evaluate_omaha(villain_h0, villain_h1, villain_h2, villain_h3, final_board[0], final_board[1], final_board[2], final_board[3], final_board[4]);
-            if (hero_score > villain_score) { win += 1.0; }
-            else if (hero_score == villain_score) { tie += 1.0; }
-            else { loss += 1.0; }
-        }
-        win = win / f32(trials);
-        tie = tie / f32(trials);
-        loss = loss / f32(trials);
+    } else {
+        // GPU evaluation for boards with < 5 cards is currently disabled in shader
+        // to prevent stack issues and ensure performance. 
+        // CPU fallback should be used.
+        win = 0.0;
+        tie = 0.0;
+        loss = 0.0;
     }
 
     let scale = 1000u;
