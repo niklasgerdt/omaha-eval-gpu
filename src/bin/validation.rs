@@ -1,4 +1,4 @@
-use plo_eval_gpu::{Card, Board, Range, EvalMode, Backend, evaluate_range_vs_range};
+use plo_eval_gpu::{Card, Board, EvalMode, Backend, Game, evaluate_range_vs_range};
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::collections::HashMap;
@@ -15,6 +15,10 @@ struct Args {
     /// Backend to use (auto, cpu, cuda, vulkan, metal)
     #[arg(short, long, default_value = "auto")]
     backend: String,
+
+    /// Game to evaluate (omaha, holdem)
+    #[arg(short, long, default_value = "omaha")]
+    game: String,
 
     /// Evaluation mode (auto, exhaustive, monte-carlo)
     #[arg(short, long, default_value = "auto")]
@@ -93,6 +97,11 @@ fn main() {
         _ => EvalMode::Auto,
     };
 
+    let game = match args.game.to_lowercase().as_str() {
+        "holdem" | "hold'em" => Game::HoldEm,
+        _ => Game::Omaha,
+    };
+
     let file = File::open(&args.input).expect("Failed to open input file");
     let reader = BufReader::new(file);
 
@@ -115,6 +124,7 @@ fn main() {
     println!("Starting validation bench...");
     println!("Input: {}", args.input);
     println!("Backend: {:?}", backend);
+    println!("Game: {:?}", game);
     println!("Mode: {:?}", eval_mode);
     println!("Tolerance: {}", args.tolerance);
     println!("--------------------------------------------------");
@@ -127,12 +137,12 @@ fn main() {
 
     let parsed_cases: Vec<(usize, ParsedCase, plo_eval_gpu::Range, plo_eval_gpu::Range, plo_eval_gpu::Board)> = lines.into_iter().filter_map(|(idx, line)| {
         let case = parse_line(&line)?;
-        let hero_range = plo_eval_gpu::Range::from_shorthand(&case.hero, &[]).ok()?;
+        let hero_range = plo_eval_gpu::Range::from_shorthand(&case.hero, &[], game).ok()?;
         let board_cards: Vec<Card> = case.board.as_bytes().chunks(2)
             .filter_map(|c| Card::from_str(std::str::from_utf8(c).unwrap()))
             .collect();
         let board = Board::new(board_cards.clone());
-        let villain_range = plo_eval_gpu::Range::from_shorthand(&case.villain, &board_cards).ok()?;
+        let villain_range = plo_eval_gpu::Range::from_shorthand(&case.villain, &board_cards, game).ok()?;
         Some((idx, case, hero_range, villain_range, board))
     }).collect();
 
@@ -142,7 +152,7 @@ fn main() {
                 return (line_idx, case.clone(), None, std::time::Duration::default(), None);
             }
             let start = std::time::Instant::now();
-            let res = evaluate_range_vs_range(hero_range, villain_range, board, eval_mode.clone(), false, backend.clone());
+            let res = evaluate_range_vs_range(hero_range, villain_range, board, eval_mode.clone(), false, backend.clone(), game);
             let actual_equity = (res.win + 0.5 * res.tie) * 100.0;
             let duration = start.elapsed();
             (line_idx, case.clone(), Some(actual_equity), duration, None)
@@ -153,7 +163,7 @@ fn main() {
         chunks.into_par_iter().flat_map(|chunk| {
             let start = std::time::Instant::now();
             let batch_input: Vec<_> = chunk.iter().map(|(_, _, h, v, b)| (h.clone(), v.clone(), b.clone(), eval_mode.clone())).collect();
-            let equities = backend.run_range_evaluation_batch(&batch_input, false);
+            let equities = backend.run_range_evaluation_batch(&batch_input, false, game);
             let duration = start.elapsed();
             let per_case_duration = duration / chunk.len() as u32;
 

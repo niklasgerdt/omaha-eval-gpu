@@ -1,5 +1,21 @@
 # Milestone Release Pipeline Specification
 
+GitHub/`gh` procedure (branch, PR, merge, tag, spec fold-in) is the personal
+Cursor skill **`milestone-release`**, not unique to this repo. Commands:
+
+```bash
+./scripts/milestone.sh start M3
+./scripts/milestone.sh verify
+./scripts/milestone.sh release
+```
+
+`verify` in **this** repo is Omaha (and later Hold'em) validation. Other
+projects use their own `scripts/milestone-verify.sh`.
+
+This document keeps eval-specific gates and performance targets.
+
+## 1. Branching Strategy
+
 This document defines the automated pipeline for releasing new milestones of the Omaha Poker Hand Evaluator. The pipeline ensures code quality, accuracy, and performance before any merge to the `master` branch.
 
 ## 1. Branching Strategy
