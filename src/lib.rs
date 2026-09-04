@@ -228,16 +228,66 @@ pub fn full_deck() -> Vec<Card> {
     deck
 }
 
-/// An Omaha hole-card hand: exactly 4 cards, always held in canonical
-/// (§4.1.4) order.
+/// Which poker variant a [`Hand`]/[`Range`] holds and an evaluation runs
+/// as. Omaha hands are 4 hole cards, showdown uses exactly 2 of them plus
+/// exactly 3 board cards ([`evaluate_omaha_hand`]); Hold'em hands are 2
+/// hole cards, showdown uses the best 5 of all hole+board cards
+/// ([`evaluate_holdem_hand`]). `hi_lo` (Omaha Hi/Lo) is only defined for
+/// `Game::Omaha` — see [`evaluate_hand_vs_hand`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Game {
+    Omaha,
+    HoldEm,
+}
+
+impl Default for Game {
+    fn default() -> Self {
+        Game::Omaha
+    }
+}
+
+/// A hole-card hand: 4 cards for [`Game::Omaha`], 2 for [`Game::HoldEm`],
+/// always held in canonical (§4.1.4) order. Which arity a given `Hand`
+/// holds is exactly its `.0.len()` — [`Hand::game`] reads that back.
+/// Constructing a `Hand` with any other length is a caller bug and not
+/// checked here; the evaluation entry points (`evaluate_hand_vs_hand` and
+/// friends) are where a `Game`/`Hand` arity mismatch is caught.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Hand(pub [Card; 4]);
+pub struct Hand(pub Vec<Card>);
 
 impl Hand {
-    /// Sorts `cards` into canonical order and wraps them as a `Hand`.
+    /// Sorts `cards` into canonical order and wraps them as an Omaha
+    /// `Hand`. Kept as `new` (rather than requiring callers to switch to
+    /// [`Hand::omaha`]) so existing 4-card call sites keep compiling.
     pub fn new(mut cards: [Card; 4]) -> Self {
         cards.sort();
-        Self(cards)
+        Self(cards.to_vec())
+    }
+
+    /// Sorts `cards` into canonical order and wraps them as an Omaha
+    /// `Hand`. Identical to [`Hand::new`]; prefer this name at new call
+    /// sites so the arity is explicit at a glance.
+    pub fn omaha(mut cards: [Card; 4]) -> Self {
+        cards.sort();
+        Self(cards.to_vec())
+    }
+
+    /// Sorts `cards` into canonical order and wraps them as a Hold'em
+    /// `Hand`.
+    pub fn holdem(mut cards: [Card; 2]) -> Self {
+        cards.sort();
+        Self(cards.to_vec())
+    }
+
+    /// The [`Game`] this hand's arity implies. Panics if the hand was
+    /// constructed with neither 2 nor 4 cards (a caller bug — see the
+    /// struct docs).
+    pub fn game(&self) -> Game {
+        match self.0.len() {
+            2 => Game::HoldEm,
+            4 => Game::Omaha,
+            n => panic!("Hand has {n} cards; expected 2 (Hold'em) or 4 (Omaha)"),
+        }
     }
 }
 
@@ -276,7 +326,16 @@ impl Range {
     /// `dead_cards` are excluded from both the deck used for pattern
     /// expansion and from any resulting hand (hands that would reuse a
     /// dead card are dropped rather than erroring).
-    pub fn from_shorthand(s: &str, dead_cards: &[Card]) -> Result<Self, String> {
+    ///
+    /// `game` selects the notation dialect: [`Game::Omaha`] parses the
+    /// §4.1.3 syntax below (unchanged from before `Game` existed);
+    /// [`Game::HoldEm`] parses the standard combo-range dialect
+    /// (`AA`, `AKs`, `AKo`, `22+`, `ATs+`, `JTs-54s`, exact combos like
+    /// `AhKd`) via [`expand_holdem_range`] instead — the two dialects
+    /// share no token shapes worth unifying (Omaha's 8-char exact hand and
+    /// Hold'em's 4-char exact combo already overlap in length only, not
+    /// meaning).
+    pub fn from_shorthand(s: &str, dead_cards: &[Card], game: Game) -> Result<Self, String> {
         let mut hands = Vec::new();
         let parts = s.split(',').map(|p| p.trim());
 
@@ -285,7 +344,12 @@ impl Range {
                 continue;
             }
 
-            // §4.1.3 Range Notation
+            if game == Game::HoldEm {
+                hands.extend(expand_holdem_range(part, dead_cards)?);
+                continue;
+            }
+
+            // §4.1.3 Range Notation (Omaha)
             // 1. Exact hand (8 chars, e.g. "AsKsQhJh")
             if part.len() == 8 {
                 let mut cards = [Card::new(Rank::Two, Suit::Spades); 4];
@@ -389,6 +453,212 @@ impl Range {
     }
 }
 
+/// `Rank` from its numeric value (`Two` = 2 .. `Ace` = 14, matching the
+/// enum's own discriminants) — the inverse of `rank as u32`. Used by the
+/// Hold'em range parser to step between ranks arithmetically (`22+`,
+/// `ATs+`, `JTs-54s`), which the char-based `Rank::from_char` can't do.
+fn rank_from_val(v: u32) -> Option<Rank> {
+    match v {
+        2 => Some(Rank::Two),
+        3 => Some(Rank::Three),
+        4 => Some(Rank::Four),
+        5 => Some(Rank::Five),
+        6 => Some(Rank::Six),
+        7 => Some(Rank::Seven),
+        8 => Some(Rank::Eight),
+        9 => Some(Rank::Nine),
+        10 => Some(Rank::Ten),
+        11 => Some(Rank::Jack),
+        12 => Some(Rank::Queen),
+        13 => Some(Rank::King),
+        14 => Some(Rank::Ace),
+        _ => None,
+    }
+}
+
+/// All `C(4,2) = 6` pocket-pair combos of `r`, minus any that touch a dead
+/// card.
+fn holdem_pair_combos(r: Rank, dead_cards: &[Card]) -> Vec<Hand> {
+    let cards: Vec<Card> = Suit::all().map(|s| Card::new(r, s)).collect();
+    let mut out = Vec::new();
+    for i in 0..cards.len() {
+        for j in i + 1..cards.len() {
+            if !dead_cards.contains(&cards[i]) && !dead_cards.contains(&cards[j]) {
+                out.push(Hand::holdem([cards[i], cards[j]]));
+            }
+        }
+    }
+    out
+}
+
+/// The 4 same-suit combos of `hi`+`lo` (one per suit), minus any that
+/// touch a dead card.
+fn holdem_suited_combos(hi: Rank, lo: Rank, dead_cards: &[Card]) -> Vec<Hand> {
+    Suit::all()
+        .filter_map(|s| {
+            let (c1, c2) = (Card::new(hi, s), Card::new(lo, s));
+            if dead_cards.contains(&c1) || dead_cards.contains(&c2) {
+                None
+            } else {
+                Some(Hand::holdem([c1, c2]))
+            }
+        })
+        .collect()
+}
+
+/// The 12 different-suit combos of `hi`+`lo` (every ordered suit pair),
+/// minus any that touch a dead card.
+fn holdem_offsuit_combos(hi: Rank, lo: Rank, dead_cards: &[Card]) -> Vec<Hand> {
+    let mut out = Vec::new();
+    for s1 in Suit::all() {
+        for s2 in Suit::all() {
+            if s1 == s2 {
+                continue;
+            }
+            let (c1, c2) = (Card::new(hi, s1), Card::new(lo, s2));
+            if !dead_cards.contains(&c1) && !dead_cards.contains(&c2) {
+                out.push(Hand::holdem([c1, c2]));
+            }
+        }
+    }
+    out
+}
+
+/// Expands one comma-separated token of Hold'em range notation into
+/// concrete 2-card combos, each with weight `1.0`. Supported shapes (see
+/// `docs/Milestone3.md` §2.3 for the full table):
+///
+/// - Exact combo: `AhKd` (two `RankSuit` cards back to back).
+/// - Pair: `AA`, `22+` (that rank through Ace), `22-66` (inclusive range).
+/// - Unpaired, both suitedness: `AK` (all 16 combos).
+/// - Unpaired, one suitedness: `AKs` (4), `AKo` (12).
+/// - Unpaired plus: `ATs+` / `KQo+` — the *lower* rank climbs from the
+///   given value up to (but not including) the higher rank, which stays
+///   fixed.
+/// - Unpaired dash range: `JTs-54s` / `JTo-54o` — both ranks step down
+///   together, holding the gap between them constant (both sides must
+///   already share that gap; this is not a generic connector search).
+///
+/// A full 169-combo chart expansion (`"random"`, positional aliases like
+/// `"UTG"`, etc.) is out of scope — see `docs/Milestone3.md` §2.3.
+fn expand_holdem_range(part: &str, dead_cards: &[Card]) -> Result<Vec<(Hand, f64)>, String> {
+    let part = part.trim();
+    if part.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // Exact combo: two full "RankSuit" cards, e.g. "AhKd". Tried first —
+    // it's the only shape that's exactly 4 chars *and* has a valid suit
+    // char in positions 1 and 3, so it never collides with "ATs+"/"KQo+"
+    // (position 1 there is 's'/'o', not a suit char).
+    if part.len() == 4 {
+        if let (Some(c1), Some(c2)) = (Card::from_str(&part[0..2]), Card::from_str(&part[2..4])) {
+            return Ok(if c1 == c2 || dead_cards.contains(&c1) || dead_cards.contains(&c2) {
+                Vec::new()
+            } else {
+                vec![(Hand::holdem([c1, c2]), 1.0)]
+            });
+        }
+    }
+
+    let chars: Vec<char> = part.chars().collect();
+    if chars.len() < 2 {
+        return Err(format!("Unsupported Hold'em range token: '{}'", part));
+    }
+    let r0 = Rank::from_char(chars[0]).ok_or_else(|| format!("Invalid rank in '{}'", part))?;
+    let r1 = Rank::from_char(chars[1]).ok_or_else(|| format!("Invalid rank in '{}'", part))?;
+    let rest: String = chars[2..].iter().collect();
+
+    let combos: Vec<Hand> = if r0 == r1 {
+        // Pair: "AA", "22+", "22-66"
+        match rest.as_str() {
+            "" => holdem_pair_combos(r0, dead_cards),
+            "+" => (r0 as u32..=Rank::Ace as u32)
+                .filter_map(rank_from_val)
+                .flat_map(|r| holdem_pair_combos(r, dead_cards))
+                .collect(),
+            s if s.starts_with('-') && s.len() == 3 => {
+                let oc: Vec<char> = s[1..].chars().collect();
+                let r2 = Rank::from_char(oc[0]).ok_or_else(|| format!("Invalid rank in '{}'", part))?;
+                let r3 = Rank::from_char(oc[1]).ok_or_else(|| format!("Invalid rank in '{}'", part))?;
+                if r2 != r3 {
+                    return Err(format!("'{}' mixes a pair with a non-pair in a dash range", part));
+                }
+                let (lo, hi) = if (r0 as u32) <= (r2 as u32) {
+                    (r0 as u32, r2 as u32)
+                } else {
+                    (r2 as u32, r0 as u32)
+                };
+                (lo..=hi)
+                    .filter_map(rank_from_val)
+                    .flat_map(|r| holdem_pair_combos(r, dead_cards))
+                    .collect()
+            }
+            _ => return Err(format!("Unsupported Hold'em range token: '{}'", part)),
+        }
+    } else {
+        // Unpaired: "AK", "AKs", "AKo", "ATs+", "KQo+", "JTs-54s", "JTo-54o"
+        let (hi, lo) = if (r0 as u32) >= (r1 as u32) { (r0, r1) } else { (r1, r0) };
+        match rest.as_str() {
+            "" => {
+                let mut v = holdem_suited_combos(hi, lo, dead_cards);
+                v.extend(holdem_offsuit_combos(hi, lo, dead_cards));
+                v
+            }
+            "s" => holdem_suited_combos(hi, lo, dead_cards),
+            "o" => holdem_offsuit_combos(hi, lo, dead_cards),
+            "s+" => ((lo as u32)..(hi as u32))
+                .filter_map(rank_from_val)
+                .flat_map(|l| holdem_suited_combos(hi, l, dead_cards))
+                .collect(),
+            "o+" => ((lo as u32)..(hi as u32))
+                .filter_map(rank_from_val)
+                .flat_map(|l| holdem_offsuit_combos(hi, l, dead_cards))
+                .collect(),
+            s if (s.starts_with('s') || s.starts_with('o')) && s.len() == 5 && s.as_bytes()[1] == b'-' => {
+                let suited = s.starts_with('s');
+                let qualifier = s.chars().last().unwrap();
+                if qualifier != (if suited { 's' } else { 'o' }) {
+                    return Err(format!("'{}' mixes suited and offsuit across a dash range", part));
+                }
+                let rc: Vec<char> = s[2..4].chars().collect();
+                let r2 = Rank::from_char(rc[0]).ok_or_else(|| format!("Invalid rank in '{}'", part))?;
+                let r3 = Rank::from_char(rc[1]).ok_or_else(|| format!("Invalid rank in '{}'", part))?;
+                if r2 == r3 {
+                    return Err(format!("'{}' mixes a pair with a non-pair in a dash range", part));
+                }
+                let (hi2, lo2) = if (r2 as u32) >= (r3 as u32) { (r2, r3) } else { (r3, r2) };
+                let gap = hi as i32 - lo as i32;
+                if hi2 as i32 - lo2 as i32 != gap {
+                    return Err(format!(
+                        "'{}' dash range must keep a constant gap between ranks",
+                        part
+                    ));
+                }
+                let (start, end) = if (hi as u32) >= (hi2 as u32) {
+                    (hi2 as u32, hi as u32)
+                } else {
+                    (hi as u32, hi2 as u32)
+                };
+                (start..=end)
+                    .filter_map(rank_from_val)
+                    .filter_map(|h| rank_from_val(h as u32 - gap as u32).map(|l| (h, l)))
+                    .flat_map(|(h, l)| {
+                        if suited {
+                            holdem_suited_combos(h, l, dead_cards)
+                        } else {
+                            holdem_offsuit_combos(h, l, dead_cards)
+                        }
+                    })
+                    .collect()
+            }
+            _ => return Err(format!("Unsupported Hold'em range token: '{}'", part)),
+        }
+    };
+
+    Ok(combos.into_iter().map(|h| (h, 1.0)).collect())
+}
+
 /// How an equity calculation is carried out.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EvalMode {
@@ -439,6 +709,11 @@ impl Backend {
     }
 
     /// Single hand-vs-hand equity, routed per [`Backend`]'s rules above.
+    /// `game` gates GPU use: the shader only knows the 4-card Omaha layout
+    /// (see `src/omaha.wgsl`), so `Game::HoldEm` always runs on CPU even
+    /// under an explicit GPU backend — the alternative would be a hard
+    /// `None`/panic on a 2-card hand the shader can't parse, which is worse
+    /// than just computing the (correct) CPU answer.
     pub fn run_evaluation(
         &self,
         hero: &Hand,
@@ -446,6 +721,7 @@ impl Backend {
         board: &Board,
         mode: &EvalMode,
         hi_lo: bool,
+        game: Game,
     ) -> Option<EquityResult> {
         if !self.is_available() {
             return None;
@@ -457,12 +733,16 @@ impl Backend {
                 board.clone(),
                 mode.clone(),
                 hi_lo,
+                game,
             )),
             Backend::Auto => {
                 // Try GPU first
-                if let Some(res) = crate::gpu::run_gpu_evaluation(hero, villain, board, mode, hi_lo)
-                {
-                    return Some(res);
+                if game == Game::Omaha {
+                    if let Some(res) =
+                        crate::gpu::run_gpu_evaluation(hero, villain, board, mode, hi_lo)
+                    {
+                        return Some(res);
+                    }
                 }
                 Some(evaluate_hand_vs_hand(
                     hero.clone(),
@@ -470,10 +750,22 @@ impl Backend {
                     board.clone(),
                     mode.clone(),
                     hi_lo,
+                    game,
                 ))
             }
             Backend::Cuda | Backend::Vulkan | Backend::Metal => {
-                crate::gpu::run_gpu_evaluation(hero, villain, board, mode, hi_lo)
+                if game == Game::Omaha {
+                    crate::gpu::run_gpu_evaluation(hero, villain, board, mode, hi_lo)
+                } else {
+                    Some(evaluate_hand_vs_hand(
+                        hero.clone(),
+                        villain.clone(),
+                        board.clone(),
+                        mode.clone(),
+                        hi_lo,
+                        game,
+                    ))
+                }
             }
         }
     }
@@ -489,6 +781,7 @@ impl Backend {
         board: &Board,
         mode: &EvalMode,
         hi_lo: bool,
+        game: Game,
     ) -> EquityResult {
         match self {
             Backend::Cpu => evaluate_range_vs_range_internal(
@@ -497,9 +790,10 @@ impl Backend {
                 board.clone(),
                 mode.clone(),
                 hi_lo,
+                game,
             ),
             Backend::Auto => {
-                if !hi_lo {
+                if !hi_lo && game == Game::Omaha {
                     if let Some(res) =
                         crate::gpu::run_gpu_range_evaluation(hero_range, villain_range, board, mode)
                     {
@@ -512,10 +806,11 @@ impl Backend {
                     board.clone(),
                     mode.clone(),
                     hi_lo,
+                    game,
                 )
             }
             _ => {
-                if !hi_lo {
+                if !hi_lo && game == Game::Omaha {
                     if let Some(res) =
                         crate::gpu::run_gpu_range_evaluation(hero_range, villain_range, board, mode)
                     {
@@ -528,6 +823,7 @@ impl Backend {
                     board.clone(),
                     mode.clone(),
                     hi_lo,
+                    game,
                 )
             }
         }
@@ -535,18 +831,22 @@ impl Backend {
 
     /// Range-vs-range equity for many independent cases at once. `hi_lo`
     /// applies uniformly to every case (all-CPU) since the GPU shader only
-    /// implements Omaha Hi. For `!hi_lo`, cases are chunked into batches of
-    /// up to 256 (the GPU shader's fixed per-dispatch case limit) and sent
-    /// to the GPU together; any case the GPU can't or didn't resolve (e.g.
-    /// no adapter available) falls back to the CPU individually, so a
-    /// single bad/unsupported case never drags the whole batch to CPU.
+    /// implements Omaha Hi. For `!hi_lo` Omaha cases, cases are chunked into
+    /// batches of up to 256 (the GPU shader's fixed per-dispatch case
+    /// limit) and sent to the GPU together; any case the GPU can't or
+    /// didn't resolve (e.g. no adapter available) falls back to the CPU
+    /// individually, so a single bad/unsupported case never drags the
+    /// whole batch to CPU. Hold'em cases always run on CPU (no GPU kernel
+    /// yet — see `run_evaluation`'s doc comment) and are not sent to the
+    /// GPU at all, not even to have it decline them.
     pub fn run_range_evaluation_batch(
         &self,
         cases: &[(Range, Range, Board, EvalMode)],
         hi_lo: bool,
+        game: Game,
     ) -> Vec<EquityResult> {
-        if hi_lo {
-            return cases
+        let cpu_all = |cases: &[(Range, Range, Board, EvalMode)]| {
+            cases
                 .iter()
                 .map(|(h, v, b, m)| {
                     evaluate_range_vs_range_internal(
@@ -555,24 +855,18 @@ impl Backend {
                         b.clone(),
                         m.clone(),
                         hi_lo,
+                        game,
                     )
                 })
-                .collect();
+                .collect::<Vec<_>>()
+        };
+
+        if hi_lo || game == Game::HoldEm {
+            return cpu_all(cases);
         }
 
         match self {
-            Backend::Cpu => cases
-                .iter()
-                .map(|(h, v, b, m)| {
-                    evaluate_range_vs_range_internal(
-                        h.clone(),
-                        v.clone(),
-                        b.clone(),
-                        m.clone(),
-                        hi_lo,
-                    )
-                })
-                .collect(),
+            Backend::Cpu => cpu_all(cases),
             Backend::Auto | Backend::Metal | Backend::Cuda | Backend::Vulkan => {
                 let mut all_results = Vec::with_capacity(cases.len());
                 for chunk in cases.chunks(256) {
@@ -588,6 +882,7 @@ impl Backend {
                                 b.clone(),
                                 m.clone(),
                                 hi_lo,
+                                game,
                             ));
                         }
                     }
@@ -705,6 +1000,47 @@ pub fn evaluate_omaha_hand_low(hand: &Hand, board: &[Card]) -> Option<[Rank; 5]>
     best_low
 }
 
+/// Best 5-card Hold'em hand `hole` (exactly 2 cards) can make with `board`,
+/// trying every 5-card subset of the combined hole+board cards — *not*
+/// Omaha's "exactly 2 from hand" rule, since Hold'em allows using 0, 1, or
+/// 2 hole cards. `board.len()` must be 0 or in `3..=5`; boards with fewer
+/// than 3 cards return the lowest possible [`HandRank`] (equity functions
+/// deal the rest of the board first rather than ranking a partial one).
+/// This single loop already covers flop (`board.len() == 3`, exactly 1
+/// subset — all 5 cards are used), turn (`C(6,5) = 6` subsets) and river
+/// (`C(7,5) = 21` subsets); there is no separate per-street rule to
+/// maintain.
+pub fn evaluate_holdem_hand(hole: &Hand, board: &[Card]) -> HandRank {
+    let mut best_rank = HandRank::HighCard(Rank::Two, Rank::Two, Rank::Two, Rank::Two, Rank::Two);
+
+    if board.len() < 3 {
+        return best_rank;
+    }
+
+    let mut all = [Card::new(Rank::Two, Suit::Spades); 7];
+    all[0] = hole.0[0];
+    all[1] = hole.0[1];
+    all[2..2 + board.len()].copy_from_slice(board);
+    let n = 2 + board.len();
+
+    for a in 0..n {
+        for b in a + 1..n {
+            for c in b + 1..n {
+                for d in c + 1..n {
+                    for e in d + 1..n {
+                        let cards = [all[a], all[b], all[c], all[d], all[e]];
+                        let rank = crate::eval::evaluate_5_cards(&cards);
+                        if rank > best_rank {
+                            best_rank = rank;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    best_rank
+}
+
 /// CPU-only single hand-vs-hand equity (no GPU routing — see [`Backend`]
 /// for that). `mode` resolves as follows:
 /// - `Exhaustive` or `Auto` with `board.len() >= 3`: enumerates every legal
@@ -719,7 +1055,16 @@ pub fn evaluate_hand_vs_hand(
     board: Board,
     mode: EvalMode,
     hi_lo: bool,
+    game: Game,
 ) -> EquityResult {
+    assert!(
+        !(hi_lo && game == Game::HoldEm),
+        "hi_lo is only defined for Game::Omaha"
+    );
+    let rank_of = |hand: &Hand, fb: &[Card]| match game {
+        Game::Omaha => evaluate_omaha_hand(hand, fb),
+        Game::HoldEm => evaluate_holdem_hand(hand, fb),
+    };
     let mut deck = [Card::new(Rank::Two, Suit::Spades); 52];
     let mut deck_len = 0;
     for s in Suit::all() {
@@ -745,8 +1090,8 @@ pub fn evaluate_hand_vs_hand(
             let mut count = 0;
 
             let mut process_full_board = |fb: &[Card]| {
-                let hero_rank = evaluate_omaha_hand(&hero, fb);
-                let villain_rank = evaluate_omaha_hand(&villain, fb);
+                let hero_rank = rank_of(&hero, fb);
+                let villain_rank = rank_of(&villain, fb);
                 if hero_rank > villain_rank {
                     hero_wins += 1;
                 } else if hero_rank < villain_rank {
@@ -857,8 +1202,8 @@ pub fn evaluate_hand_vs_hand(
                     full_board[board.0.len() + i] = deck_vec[i];
                 }
 
-                let hero_rank = evaluate_omaha_hand(&hero, &full_board);
-                let villain_rank = evaluate_omaha_hand(&villain, &full_board);
+                let hero_rank = rank_of(&hero, &full_board);
+                let villain_rank = rank_of(&villain, &full_board);
                 if hero_rank > villain_rank {
                     hero_wins += 1;
                 } else if hero_rank < villain_rank {
@@ -933,6 +1278,7 @@ pub fn evaluate_hand_vs_hand(
                 board,
                 EvalMode::MonteCarlo { samples, seed },
                 hi_lo,
+                game,
             )
         }
     }
@@ -949,6 +1295,7 @@ pub fn evaluate_hand_vs_range(
     board: Board,
     mode: EvalMode,
     hi_lo: bool,
+    game: Game,
 ) -> EquityResult {
     let mut total_win = 0.0;
     let mut total_tie = 0.0;
@@ -976,6 +1323,7 @@ pub fn evaluate_hand_vs_range(
             board.clone(),
             mode.clone(),
             hi_lo,
+            game,
         );
         total_win += res.win * weight;
         total_tie += res.tie * weight;
@@ -1041,8 +1389,9 @@ pub fn evaluate_range_vs_range(
     mode: EvalMode,
     hi_lo: bool,
     backend: Backend,
+    game: Game,
 ) -> EquityResult {
-    backend.run_range_evaluation(&hero_range, &villain_range, &board, &mode, hi_lo)
+    backend.run_range_evaluation(&hero_range, &villain_range, &board, &mode, hi_lo, game)
 }
 
 fn evaluate_range_vs_range_internal(
@@ -1051,6 +1400,7 @@ fn evaluate_range_vs_range_internal(
     board: Board,
     mode: EvalMode,
     hi_lo: bool,
+    game: Game,
 ) -> EquityResult {
     let mut total_win = 0.0;
     let mut total_tie = 0.0;
@@ -1090,6 +1440,7 @@ fn evaluate_range_vs_range_internal(
                 board.clone(),
                 mode.clone(),
                 hi_lo,
+                game,
             );
             sub_win += res.win * villain_weight;
             sub_tie += res.tie * villain_weight;
@@ -1146,18 +1497,20 @@ fn evaluate_range_vs_range_internal(
     }
 }
 
-/// Deals one random 4-card hand from the deck minus `dead_cards`. `rng_seed`
-/// gives a reproducible deal; `None` seeds from OS entropy. For dealing
-/// multiple non-overlapping hands (e.g. hero + villain), prefer
-/// [`random_hands`] over calling this repeatedly — repeated independent
-/// calls reshuffle the whole deck each time and are not guaranteed disjoint.
-pub fn random_hand(dead_cards: &[Card], rng_seed: Option<u64>) -> Hand {
-    random_hands(1, dead_cards, rng_seed).pop().unwrap()
+/// Deals one random hand (4 cards for [`Game::Omaha`], 2 for
+/// [`Game::HoldEm`]) from the deck minus `dead_cards`. `rng_seed` gives a
+/// reproducible deal; `None` seeds from OS entropy. For dealing multiple
+/// non-overlapping hands (e.g. hero + villain), prefer [`random_hands`]
+/// over calling this repeatedly — repeated independent calls reshuffle the
+/// whole deck each time and are not guaranteed disjoint.
+pub fn random_hand(dead_cards: &[Card], rng_seed: Option<u64>, game: Game) -> Hand {
+    random_hands(1, dead_cards, rng_seed, game).pop().unwrap()
 }
 
-/// Deals `count` non-overlapping 4-card hands from a single shuffle of the deck
-/// (minus `dead_cards`).
-pub fn random_hands(count: usize, dead_cards: &[Card], rng_seed: Option<u64>) -> Vec<Hand> {
+/// Deals `count` non-overlapping hands (4 cards each for [`Game::Omaha`],
+/// 2 each for [`Game::HoldEm`]) from a single shuffle of the deck (minus
+/// `dead_cards`).
+pub fn random_hands(count: usize, dead_cards: &[Card], rng_seed: Option<u64>, game: Game) -> Vec<Hand> {
     let mut deck: Vec<Card> = full_deck()
         .into_iter()
         .filter(|c| !dead_cards.contains(c))
@@ -1170,14 +1523,15 @@ pub fn random_hands(count: usize, dead_cards: &[Card], rng_seed: Option<u64>) ->
     };
 
     deck.shuffle(&mut rng);
+    let arity = match game {
+        Game::Omaha => 4,
+        Game::HoldEm => 2,
+    };
     (0..count)
         .map(|i| {
-            Hand::new([
-                deck[i * 4],
-                deck[i * 4 + 1],
-                deck[i * 4 + 2],
-                deck[i * 4 + 3],
-            ])
+            let mut cards = deck[i * arity..i * arity + arity].to_vec();
+            cards.sort();
+            Hand(cards)
         })
         .collect()
 }
@@ -1240,7 +1594,7 @@ mod tests {
             Card::new(Rank::Nine, Suit::Spades),
         ]);
 
-        let result = evaluate_hand_vs_hand(hero, villain, board, EvalMode::Exhaustive, false);
+        let result = evaluate_hand_vs_hand(hero, villain, board, EvalMode::Exhaustive, false, Game::Omaha);
         assert_eq!(result.win, 1.0);
         assert_eq!(result.loss, 0.0);
         assert_eq!(result.tie, 0.0);
@@ -1269,7 +1623,7 @@ mod tests {
             Card::new(Rank::Jack, Suit::Clubs),
         ]);
 
-        let result = evaluate_hand_vs_hand(hero, villain, board, EvalMode::Exhaustive, true);
+        let result = evaluate_hand_vs_hand(hero, villain, board, EvalMode::Exhaustive, true, Game::Omaha);
 
         // Hero low: A, 2 + 3, 4, 5 -> 5, 4, 3, 2, 1 (Best possible low)
         // Villain low: A, 3 + 4, 5, 3 is not possible because only 3 from board.
@@ -1304,6 +1658,150 @@ mod tests {
         assert_eq!(hand.0[3], Card::from_str("2d").unwrap());
     }
 
+    // --- M3: Hold'em (docs/Milestone3.md) ---
+
+    #[test]
+    fn test_holdem_evaluation() {
+        // Hole cards Ah Kh don't touch the board at all: the board itself
+        // (As Ks Qs Js Ts) is a royal flush. Omaha would be forced to use
+        // exactly 2 hole cards here and could never see this; Hold'em's
+        // "best 5 of 7" rule must find it using 0 hole cards.
+        let hole = Hand::holdem([Card::from_str("Ah").unwrap(), Card::from_str("Kh").unwrap()]);
+        let board = vec![
+            Card::from_str("As").unwrap(),
+            Card::from_str("Ks").unwrap(),
+            Card::from_str("Qs").unwrap(),
+            Card::from_str("Js").unwrap(),
+            Card::from_str("Ts").unwrap(),
+        ];
+        let rank = evaluate_holdem_hand(&hole, &board);
+        assert_eq!(rank, HandRank::StraightFlush(Rank::Ace));
+    }
+
+    #[test]
+    fn test_holdem_hand_vs_hand_exhaustive() {
+        let hero = Hand::holdem([Card::from_str("As").unwrap(), Card::from_str("Ac").unwrap()]);
+        let villain = Hand::holdem([Card::from_str("4h").unwrap(), Card::from_str("5d").unwrap()]);
+        let board = Board::new(vec![
+            Card::from_str("Ah").unwrap(),
+            Card::from_str("Kh").unwrap(),
+            Card::from_str("7d").unwrap(),
+            Card::from_str("8c").unwrap(),
+            Card::from_str("9s").unwrap(),
+        ]);
+
+        let result = evaluate_hand_vs_hand(hero, villain, board, EvalMode::Exhaustive, false, Game::HoldEm);
+        assert_eq!(result.win, 1.0);
+        assert_eq!(result.loss, 0.0);
+        assert_eq!(result.tie, 0.0);
+    }
+
+    #[test]
+    fn test_holdem_canonical_sorting() {
+        let hand = Hand::holdem([Card::from_str("Ac").unwrap(), Card::from_str("As").unwrap()]);
+        assert_eq!(hand.0[0], Card::from_str("As").unwrap());
+        assert_eq!(hand.0[1], Card::from_str("Ac").unwrap());
+        assert_eq!(hand.game(), Game::HoldEm);
+    }
+
+    #[test]
+    #[should_panic(expected = "hi_lo is only defined for Game::Omaha")]
+    fn test_holdem_hi_lo_rejected() {
+        let hero = Hand::holdem([Card::from_str("As").unwrap(), Card::from_str("Ac").unwrap()]);
+        let villain = Hand::holdem([Card::from_str("4h").unwrap(), Card::from_str("5d").unwrap()]);
+        let board = Board::new(vec![
+            Card::from_str("Ah").unwrap(),
+            Card::from_str("Kh").unwrap(),
+            Card::from_str("7d").unwrap(),
+            Card::from_str("8c").unwrap(),
+            Card::from_str("9s").unwrap(),
+        ]);
+        let _ = evaluate_hand_vs_hand(hero, villain, board, EvalMode::Exhaustive, true, Game::HoldEm);
+    }
+
+    #[test]
+    fn test_holdem_range_pair() {
+        // "AA": all C(4,2) = 6 combos, every hand exactly {A,A}.
+        let range = Range::from_shorthand("AA", &[], Game::HoldEm).unwrap();
+        assert_eq!(range.hands.len(), 6);
+        for (hand, _) in &range.hands {
+            assert_eq!(hand.0.len(), 2);
+            assert!(hand.0.iter().all(|c| c.rank == Rank::Ace));
+        }
+    }
+
+    #[test]
+    fn test_holdem_range_pair_plus_and_dash() {
+        // "22+": every pair 22..AA, 13 ranks * 6 combos = 78.
+        let plus = Range::from_shorthand("22+", &[], Game::HoldEm).unwrap();
+        assert_eq!(plus.hands.len(), 13 * 6);
+
+        // "22-66": pairs 22,33,44,55,66 -> 5 ranks * 6 combos = 30.
+        let dash = Range::from_shorthand("22-66", &[], Game::HoldEm).unwrap();
+        assert_eq!(dash.hands.len(), 5 * 6);
+    }
+
+    #[test]
+    fn test_holdem_range_unpaired_suitedness() {
+        // "AK": all 16 combos (4 suited + 12 offsuit).
+        let both = Range::from_shorthand("AK", &[], Game::HoldEm).unwrap();
+        assert_eq!(both.hands.len(), 16);
+
+        // "AKs": suited only, 4 combos.
+        let suited = Range::from_shorthand("AKs", &[], Game::HoldEm).unwrap();
+        assert_eq!(suited.hands.len(), 4);
+
+        // "AKo": offsuit only, 12 combos.
+        let offsuit = Range::from_shorthand("AKo", &[], Game::HoldEm).unwrap();
+        assert_eq!(offsuit.hands.len(), 12);
+    }
+
+    #[test]
+    fn test_holdem_range_plus_and_dash_unpaired() {
+        // "ATs+": AT s, AJs, AQs, AKs -> 4 ranks * 4 combos = 16.
+        let ats_plus = Range::from_shorthand("ATs+", &[], Game::HoldEm).unwrap();
+        assert_eq!(ats_plus.hands.len(), 4 * 4);
+
+        // "KQo+": only KQo itself (Q is already one below K) -> 12 combos.
+        let kqo_plus = Range::from_shorthand("KQo+", &[], Game::HoldEm).unwrap();
+        assert_eq!(kqo_plus.hands.len(), 12);
+
+        // "JTs-54s": connectors JT, T9, 98, 87, 76, 65, 54 -> 7 * 4 = 28.
+        let dash_suited = Range::from_shorthand("JTs-54s", &[], Game::HoldEm).unwrap();
+        assert_eq!(dash_suited.hands.len(), 7 * 4);
+
+        // Same range, offsuit: 7 * 12 = 84.
+        let dash_offsuit = Range::from_shorthand("JTo-54o", &[], Game::HoldEm).unwrap();
+        assert_eq!(dash_offsuit.hands.len(), 7 * 12);
+    }
+
+    #[test]
+    fn test_holdem_range_exact_combo_and_dead_cards() {
+        let exact = Range::from_shorthand("AhKd", &[], Game::HoldEm).unwrap();
+        assert_eq!(exact.hands.len(), 1);
+        assert_eq!(exact.hands[0].0.0.len(), 2);
+
+        // Removing one Ace leaves 3 remaining pair combos (C(3,2) = 3).
+        let dead = [Card::from_str("As").unwrap()];
+        let pair_minus_dead = Range::from_shorthand("AA", &dead, Game::HoldEm).unwrap();
+        assert_eq!(pair_minus_dead.hands.len(), 3);
+        assert!(pair_minus_dead
+            .hands
+            .iter()
+            .all(|(h, _)| !h.0.contains(&dead[0])));
+    }
+
+    #[test]
+    fn test_holdem_range_isolated_from_omaha() {
+        // The same "AA" token means something different (and a different
+        // hand arity) per game — the parsers must not bleed into each other.
+        let omaha_aa = Range::from_shorthand("AA", &[], Game::Omaha).unwrap();
+        let holdem_aa = Range::from_shorthand("AA", &[], Game::HoldEm).unwrap();
+        assert_eq!(omaha_aa.hands[0].0.0.len(), 4);
+        assert_eq!(holdem_aa.hands[0].0.0.len(), 2);
+        assert_ne!(omaha_aa.hands.len(), holdem_aa.hands.len());
+    }
+
     #[test]
     #[ignore]
     fn test_gpu_vs_cpu() {
@@ -1333,6 +1831,7 @@ mod tests {
             board.clone(),
             EvalMode::Exhaustive,
             false,
+            Game::Omaha,
         );
         let gpu_res =
             crate::gpu::run_gpu_evaluation(&hero, &villain, &board, &EvalMode::Exhaustive, false);
@@ -1384,7 +1883,7 @@ mod tests {
         let mut rng_seed = 1u64;
         let mut cases = Vec::with_capacity(256);
         for _ in 0..256 {
-            let hands = random_hands(2, &[], Some(rng_seed));
+            let hands = random_hands(2, &[], Some(rng_seed), Game::Omaha);
             rng_seed += 1;
             let hero_range = Range {
                 hands: vec![(hands[0].clone(), 1.0)],
@@ -1503,7 +2002,7 @@ mod tests {
                     let mut rng_seed = 1000 * t + 100 * round + 1;
                     let mut cases = Vec::with_capacity(256);
                     for _ in 0..256 {
-                        let hands = random_hands(2, &[], Some(rng_seed));
+                        let hands = random_hands(2, &[], Some(rng_seed), Game::Omaha);
                         rng_seed += 1;
                         let hero_range = Range {
                             hands: vec![(hands[0].clone(), 1.0)],

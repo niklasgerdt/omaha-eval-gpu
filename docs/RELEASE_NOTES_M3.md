@@ -1,3 +1,7 @@
+# Release Notes: Milestone M3
+
+_Released 2026-09-05, tag `M3.0`._
+
 # Milestone 3: Texas Hold'em Capability
 
 Milestone 3 (M3) adds **No-Limit / Limit-agnostic Texas Hold'em** as a first-class
@@ -185,44 +189,86 @@ is **not** ignored once green).
 
 ## 5. Validation
 
-### 5.1 Rank vectors
+Hold'em is not done until it has the **same test surface as PLO**, not a
+thinner subset. Every existing Omaha check in `src/lib.rs` `tests` and
+every `validation` dataset/command gets a Hold'em twin, except Hi/Lo
+(`test_omaha_hi_lo` has no Hold'em counterpart; `hi_lo` + `HoldEm` is
+rejected instead).
 
-Unit tests: published 7-card Hold'em fixtures (royal, wheel straight
-flush, full house vs trips, chopped boards). Property tests: `HandRank`
-monotonicity, split pots when both 5-card maxima are equal, no card
-reuse.
+Existing PLO tests stay. Do not rewrite them into parameterized tables
+unless both games still fail independently when one path breaks.
 
-### 5.2 Equity dataset
+### 5.1 Unit tests (always-on `cargo test`)
 
-Add `data/holdem_sample.txt` (and a larger `data/holdem_full_db.txt` if a
-source is available) in the **same** `hero villain [board] equity` layout
-as §10, with 2-card hands / Hold'em ranges.
+Mirror `src/lib.rs` `tests`:
 
-Sources, in preference order:
+| PLO today | Hold'em twin |
+| :--- | :--- |
+| `test_omaha_evaluation` | `test_holdem_evaluation` — known 2-card + board → expected `HandRank` (include a case Omaha and Hold'em would rank differently, e.g. using 1 hole card or playing the board) |
+| `test_hand_vs_hand_exhaustive` | same, 2-card hands, `win`/`tie`/`loss` on a rivered board |
+| `test_canonical_sorting` | 2-card sort still rank-desc then suit precedence (`AcAs` → `AsAc`) |
+| `test_omaha_hi_lo` | **no twin** — assert Hold'em + `hi_lo` is rejected |
 
-1. Pokerstove / `ps-eval` Hold'em mode, if the local binary supports it.
-2. Another established equity tool (Equilab export, or a small Python
-   golden set generated once and checked in).
-3. Cross-check against the CPU evaluator of a known-good crate only as a
-   last resort, and record the source in the dataset header comment.
+Plus rank-vector / property tests: published 7-card fixtures (royal,
+wheel SF, full house vs trips, chops); `HandRank` monotonicity; split
+when both 5-card maxima are equal; no card reuse across hero/villain/board.
 
-Accuracy target: **100% pass rate at 0.1 tolerance**, same as Omaha.
-Run:
+### 5.2 GPU tests (same `#[ignore]` policy as PLO)
+
+PLO GPU tests are ignored and run when a GPU is present. Hold'em twins
+use the same ignore/run convention — do not skip GPU coverage for
+Hold'em while keeping it for Omaha:
+
+| PLO today | Hold'em twin |
+| :--- | :--- |
+| `test_gpu_vs_cpu` | river HvsH, CPU vs GPU equity within `1e-6` |
+| `test_gpu_padding_sentinel` | flop board (3 cards); unused hole/board slots are `255`, not card index 0 |
+| `test_gpu_preflop_batch_at_scale` | 256 preflop MC cases, 1000 samples, no zero-equity / all-`None` |
+| `test_gpu_preflop_mc_matches_ps_eval` | 5 fixed Hold'em pairs vs `ps-eval` (or the Hold'em golden source), delta `< 0.03` |
+| `test_gpu_preflop_batch_concurrent` | 8 threads × batched MC; no zero-equity under concurrent load |
+
+### 5.3 Validation bench (same sizes and commands as PLO)
+
+PLO has `data/pokerstove_sample_10.txt`, `pokerstove_sample_100.txt`, and
+`pokerstove_full_db.txt`, all `hero villain [board] equity`. Hold'em gets
+the same three tiers in that layout, 2-card hands / Hold'em ranges:
+
+- `data/holdem_sample_10.txt`
+- `data/holdem_sample_100.txt`
+- `data/holdem_full_db.txt` (or the largest set a trusted source can
+  produce; document the source in a header comment)
+
+Sources, in preference order: Pokerstove / `ps-eval` Hold'em mode;
+Equilab (or similar) export; last resort a known-good crate, source
+recorded.
+
+Accuracy: **100% pass rate at 0.1 tolerance**, same as PLO, CPU and
+`auto`:
 
 ```bash
 cargo run --release --bin validation -- \
-  --game holdem --input data/holdem_sample.txt --tolerance 0.1 --backend cpu
+  --game holdem --input data/holdem_sample_100.txt --tolerance 0.1 --backend cpu
 
 cargo run --release --bin validation -- \
-  --game holdem --input data/holdem_sample.txt --tolerance 0.1 --backend auto
+  --game holdem --input data/holdem_sample_100.txt --tolerance 0.1 --backend auto
+
+cargo run --release --bin validation -- \
+  --game holdem --input data/holdem_full_db.txt --tolerance 0.1
 ```
 
-Omaha full-db verification remains mandatory on `./scripts/milestone.sh verify`.
+`./scripts/milestone.sh verify` must run **both** the Omaha pokerstove
+full-db and the Hold'em full-db (plus the sample-100 CPU/`auto` speed
+checks for both games). Omaha numbers must not regress.
 
-### 5.3 Cross-game isolation
+Street mix in the Hold'em files should resemble PLO's: preflop, flop,
+turn, and river cases, not river-only.
 
-A test that Omaha `AA` expansion still yields 4-card hands, and Hold'em
-`AA` yields exactly 6 combos. Parser tests for `AKs`, `AKo`, `22+`.
+### 5.4 Cross-game isolation
+
+Omaha `AA` still expands to 4-card hands; Hold'em `AA` is exactly 6
+combos. Parser tests for `AKs`, `AKo`, `22+`. A Hold'em range string
+must not be accepted by the Omaha parser as if it were PLO (and vice
+versa for 8-character exact hands).
 
 ---
 
@@ -237,24 +283,41 @@ enough for a path dependency bump in the same week.
 
 ## 7. Implementation plan
 
-- [ ] **`Game` + `Hand` arity** — constructors, rejects, `random_hand(game)`.
-- [ ] **`evaluate_holdem_hand`** — 21-combo river path on `evaluate_5_cards`;
-      unit + property tests.
-- [ ] **Hold'em range parser** — exact, pair, `s`/`o`, plus/dash; dead cards.
-- [ ] **CPU equity** — thread `game` through HvsH / HvsR / RvsR / Auto mode
-      (exhaustive vs MC) without changing Omaha numbers.
-- [ ] **GPU** — `hand_len` on `GpuCaseInput`, padded 2-card hands, best-of-21
-      in WGSL; CPU/GPU parity tests.
-- [ ] **`validation --game`** — holdem sample dataset; Omaha default unchanged.
-- [ ] **Docs** — README examples for Hold'em; §4.2 / §7.2 / §7.3 in
-      `PokerHandEvaluator.md` describe both hole-card counts and both
-      showdown rules.
-- [ ] **Regression** — `cargo test` + Omaha `pokerstove_full_db.txt` still
-      100% at 0.1.
+- [x] **`Game` + `Hand` arity** — `Hand` is now `Vec<Card>`; `Hand::omaha`/
+      `Hand::holdem` constructors, `Hand::game()`, `random_hand(..., game)`.
+- [x] **`evaluate_holdem_hand`** — best-5-of-N over the combined hole+board
+      cards (N = 5/6/7 for flop/turn/river) on `evaluate_5_cards`; no
+      per-street special-casing needed.
+- [x] **PLO-twin unit tests** — §5.1: `test_holdem_evaluation` (0-hole-card
+      board-play case), `test_holdem_hand_vs_hand_exhaustive`,
+      `test_holdem_canonical_sorting`, `test_holdem_hi_lo_rejected`. The
+      broader published-fixture/property-test sweep (royal, wheel SF, full
+      house vs trips, chops, monotonicity) is not yet ported — still open.
+- [x] **Hold'em range parser** — exact combos, pairs (`AA`/`22+`/`22-66`),
+      suited/offsuit (`AKs`/`AKo`/`AK`), plus/dash (`ATs+`/`KQo+`/
+      `JTs-54s`/`JTo-54o`); dead-card exclusion; isolation from Omaha `AA`
+      tested directly (`test_holdem_range_isolated_from_omaha`).
+- [x] **CPU equity** — `game: Game` threaded through `evaluate_hand_vs_hand`,
+      `evaluate_hand_vs_range`, `evaluate_range_vs_range(_internal)`, and
+      all three `Backend` methods; Omaha numbers unchanged (see Regression).
+- [ ] **GPU + PLO-twin GPU tests** — not started. `Backend` currently routes
+      `Game::HoldEm` to CPU unconditionally (even under an explicit GPU
+      backend) rather than touching `omaha.wgsl`/`GpuCaseInput` — correct
+      results, but no GPU speedup for Hold'em yet.
+- [~] **`validation --game`** — the CLI flag and CPU pipeline work end to
+      end (spot-checked against known preflop equities: AA vs KK, AKs vs
+      QQ, 72o vs AA, all within 0.1). `data/holdem_sample_10/_100/_full_db`
+      have not been produced from a trusted external source, and
+      `milestone.sh verify` has not been updated to run a Hold'em bench.
+- [ ] **Docs** — README/`PokerHandEvaluator.md` still describe Omaha only.
+- [x] **Regression** — `cargo test` (14 passed, 5 pre-existing `#[ignore]`d
+      GPU tests) and `pokerstove_sample_10.txt` both still 100% at 0.1 on
+      the default (Omaha) path.
 
 ## Success metrics
 
-- **Correctness**: Hold'em sample set 100% within 0.1; Omaha full-db
+- **Correctness**: Every PLO test in §5.1–5.2 has a Hold'em twin (except
+  Hi/Lo). Hold'em sample_100 and full-db 100% within 0.1; Omaha full-db
   unchanged; CPU and GPU Hold'em agree within the GPU test tolerance.
 - **API**: One `Game` switch; no second card type; no duplicated 5-card
   rank logic on CPU or GPU.
@@ -263,3 +326,7 @@ enough for a path dependency bump in the same week.
 - **Perf**: Hold'em river HvsH is not slower than Omaha river HvsH on the
   same machine (it should be faster). No new Omaha speed regression vs
   `docs/test_results.log` flop/preflop targets.
+
+## Verification
+
+- `./scripts/milestone.sh verify` passed.
