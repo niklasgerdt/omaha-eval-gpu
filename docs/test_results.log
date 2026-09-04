@@ -1,3 +1,36 @@
+--- Validation Run: 2026-09-05T00:26:33.628715+03:00 ---
+Input: data/pokerstove_sample_100.txt, Backend: Auto, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 4
+Overall Pass rate: 100.00%
+Total time: 452.3345ms
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=4.560856ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=4.560856ms
+--------------------------------------------------
+
+--- Validation Run: 2026-09-05T00:26:32.932816+03:00 ---
+Input: data/pokerstove_sample_100.txt, Backend: Cpu, Mode: Auto
+Total cases: 95, Passed: 95, Skipped: 4
+Overall Pass rate: 100.00%
+Total time: 567.695833ms
+
+Breakdown by query type:
+  Flop      : Count=45  , Pass Rate=100.00%, Avg Time=5.618304ms
+  Pre-flop  : Count=50  , Pass Rate=100.00%, Avg Time=99.700598ms
+--------------------------------------------------
+
+--- Validation Run: 2026-09-05T00:26:31.905617+03:00 ---
+Input: data/pokerstove_full_db.txt, Backend: Auto, Mode: Auto
+Total cases: 246402, Passed: 245365, Skipped: 0
+Overall Pass rate: 99.58%
+Total time: 493.0485605s
+
+Breakdown by query type:
+  Flop      : Count=246401, Pass Rate= 99.58%, Avg Time=21.879837ms
+  Turn      : Count=1   , Pass Rate=  0.00%, Avg Time=4.328608ms
+--------------------------------------------------
+
 --- Validation Run: 2026-08-30T16:05:02.631426+03:00 ---
 Input: data/pokerstove_sample_100.txt, Backend: Auto, Mode: Auto
 Total cases: 95, Passed: 95, Skipped: 4

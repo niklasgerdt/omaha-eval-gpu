@@ -7,7 +7,11 @@ This document defines the automated pipeline for releasing new milestones of the
 We use the GitHub CLI (`gh`) for all repository operations.
 
 ### 1.1 Starting a Milestone
-When work begins on a new milestone (e.g., M3), a dedicated feature branch must be created:
+A milestone requires a written requirement/spec doc *before* its branch exists.
+The doc's name is derived from the milestone name: `M3` → `docs/Milestone3.md`
+(strip the leading `M`, prepend `Milestone`) — matching the existing
+`docs/Milestone3.md`/`docs/Milestone4.md`/`docs/Milestone5.md` convention. `start` refuses to create
+the branch if that file is missing:
 ```bash
 gh repo fork # If working from a fork
 git checkout -b milestone/M3
@@ -60,19 +64,46 @@ cargo run --release --bin validation -- --input data/pokerstove_sample_100.txt -
 
 Once all requirements in Section 2 are met:
 
-### 3.1 Pull Request
+### 3.1 Fold the Spec into Release Notes
+`release` writes `docs/RELEASE_NOTES_M3.md` from the milestone's spec doc
+(`docs/Milestone3.md`) plus the verification results from Section 2, then
+removes the spec — the release notes become the permanent record of what
+that spec turned into, so keeping both around is redundant. If no spec doc
+exists (true for milestones that predate this convention), this step is
+skipped with a warning rather than failing the release.
+
+### 3.2 Update README.md
+The script mechanically bumps the version tag README.md already carries
+(the `## Milestone Release Pipeline (Mx.y)` heading) to the new milestone.
+That's the limit of what a bash script can safely rewrite unattended —
+anything beyond a fixed tag (feature lists, benchmark numbers, project
+structure prose) needs judgment, so whoever runs `release` (a person, or
+Claude running it on your behalf) should read through README.md and update
+any stale prose as part of the same commit, before pushing.
+
+### 3.3 Commit and Push
+`release` stages and commits any pending changes (release notes, spec
+removal, README bump, the `verify`-updated `docs/test_results.log`, and
+anything else pending) and pushes the milestone branch, so a run of
+`start` → `verify` → `release` doesn't require a manual commit in between:
+```bash
+git add -A && git commit -m "milestone M3: release notes + verification + pending changes"
+git push -u origin milestone/M3
+```
+
+### 3.4 Pull Request
 Create a Pull Request using `gh`:
 ```bash
 gh pr create --title "Release Milestone M3" --body "Summary of changes and verification results."
 ```
 
-### 3.2 Merge to Master
+### 3.5 Merge to Master
 After review, merge the PR into the `master` branch:
 ```bash
 gh pr merge --merge --delete-branch
 ```
 
-### 3.3 Tagging
+### 3.6 Tagging
 Tag the `master` branch with the milestone version:
 ```bash
 git checkout master

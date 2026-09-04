@@ -1,40 +1,56 @@
-# Milestone 4: Omaha Hi/Lo Capability
+# Milestone 4: Intelligent Backend Selection
+
+> **Status update**: the "Street-Based" and "Proposed Thresholds" heuristics
+> below described a plan to gate GPU use behind board length and range-size
+> thresholds, driven by the GPU shader only supporting rivered (5-card)
+> boards at the time this doc was written. That GPU limitation has since
+> been resolved (see docs/PokerHandEvaluator.md §7.4/§7.5): the shader now
+> exhaustively enumerates turn/flop boards and runs Monte Carlo sampling —
+> with each hand pair's samples split across multiple GPU threads instead of
+> one thread per pair — for anything with fewer than 3 known board cards.
+> `Backend::Auto` therefore now tries GPU for every case unconditionally and
+> falls back to CPU per-case only when the GPU is unavailable or a specific
+> case didn't resolve, rather than pre-selecting CPU by street or case size.
+> The size-threshold heuristic proposed below was not implemented as such;
+> this doc is kept for the historical reasoning, not as current behavior.
 
 ## Overview
-Milestone 4 (M4) focuses on extending the evaluator's capabilities to support Omaha Hi/Lo (8-or-better) across all backends (CPU and GPU) and ensuring rigorous validation against industry-standard test sets, similar to the process established for PLO.
+Milestone 4 (M4) focuses on optimizing the evaluation pipeline by implementing an intelligent, automatic selection between CPU and GPU backends. This decision is based on the characteristics of the input parameters to maximize throughput and minimize latency.
 
-## Objectives
+## Key Insights
+Based on historical performance data and architectural constraints:
+- **GPU Strength**: Massive parallelization. Ideal for "large" problems where the overhead of memory transfer and kernel dispatch is amortized over a high number of evaluations (e.g., large range-vs-range scenarios or batch processing).
+- **CPU Strength**: Low latency and high single-thread speed. Superior for "small" problems (e.g., single hand-vs-hand evaluations) due to the absence of context switching and GPU synchronization overhead.
+- **Current Limitation**: GPU evaluation currently only supports **Rivered boards (5 cards)** and does not support **Omaha Hi/Lo**.
 
-### 1. Hi/Lo Evaluation Logic
-- **Split Pot Support**: Implement the logic to correctly identify the "Hi" hand (standard Omaha) and the "Lo" hand (8-or-better).
-- **GPU Kernel Extension**: Update the WGSL shaders to support low hand evaluation. This involves checking for 5 unique ranks between 8 and Ace.
-- **Result Aggregation**: Update `EquityResult` and the aggregation logic to handle both Hi and Lo equities (Win/Tie/Loss for both halves of the pot).
+## M4 Objectives
 
-### 2. Validation & Testing
-- **Test Set Acquisition**: Identify or generate comprehensive test sets for Omaha Hi/Lo, covering edge cases like:
-  - Multiple players qualifying for Low.
-  - No one qualifying for Low (Hi takes the whole pot).
-  - Protected Low hands.
-  - Quartering (splitting one half of the pot).
-- **Harness Update**: Update the `validation` binary to support Hi/Lo comparison.
-- **Accuracy Target**: Achieve a 100% pass rate within 0.1 tolerance against Pokerstove or equivalent high-fidelity evaluators for Hi/Lo.
+### 1. Heuristic-Based Backend Selector
+Implement a selection logic within `Backend::Auto` that considers:
+- **Case Size**: The product of Hero range size and Villain range size.
+- **Batch Size**: The number of concurrent equity queries requested.
+- **Complexity**: Evaluation mode (Exhaustive vs. Monte Carlo).
+- **Street**: CPU is currently required for Pre-flop, Flop, and Turn.
 
-### 3. API & Integration
-- **Backend Transparency**: Ensure `Backend::Auto` correctly routes Hi/Lo queries to the appropriate backend (initially CPU until GPU kernels are verified).
-- **Feature Parity**: Ensure that Hand-vs-Hand, Hand-vs-Range, and Range-vs-Range all support the `hi_lo` flag.
+### 2. Proposed Thresholds
+Initial heuristics to be refined via benchmarking:
+- **Single Range Evaluation**: 
+  - Use **GPU** if `hero_range.len() * villain_range.len() > 10,000`.
+  - Use **CPU** otherwise.
+- **Batch Evaluation**:
+  - Use **GPU** if `total_pairs > 5,000` or `batch_size > 32`.
+- **Street-Based**:
+  - Always use **CPU** for boards with < 5 cards (until GPU kernels are updated).
+- **Mode-Based**:
+  - Always use **CPU** for Omaha Hi/Lo.
 
-## Proposed Thresholds & Performance
-- **Low Hand Logic**: Low evaluation adds complexity. The intelligent selector from M3 should be tuned to account for the increased computational cost of Hi/Lo.
-- **Throughput**: Maintain high throughput for split-pot calculations by optimizing the combined Hi+Lo evaluation path.
-
-## Implementation Plan
-- [ ] **Low Hand Evaluator**: Implement a fast 8-or-better evaluator for the CPU.
-- [ ] **GPU Low Hand Support**: Port the low hand logic to WGSL shaders.
-- [ ] **Hi/Lo Equity Logic**: Update the equity calculators to track low hand results.
-- [ ] **Hi/Lo Validation Data**: Add `data/pokerstove_hilo_sample.txt`.
-- [ ] **Harness Enhancement**: Update `src/bin/validation.rs` to handle Hi/Lo output.
+### 3. Implementation Plan
+- [ ] **Enhance `Backend::Auto`**: Refactor `run_range_evaluation` and `run_range_evaluation_batch` in `src/lib.rs` to use the new heuristic.
+- [ ] **Dynamic Profiling**: Add internal telemetry to log execution times for CPU vs GPU on similar workloads to fine-tune thresholds.
+- [ ] **Fallback Mechanism**: Ensure seamless fallback to CPU if GPU resources are exhausted or initialization fails.
+- [ ] **Benchmarking Suite**: Create a dedicated benchmark in `benches/` to validate the heuristics across different hardware (Metal, Vulkan, CUDA).
 
 ## Success Metrics
-- **Correctness**: 100% match on known Hi/Lo test cases.
-- **Performance**: Hi/Lo evaluation should not exceed 2x the time of standard Hi evaluation.
-- **Completeness**: All range types (Exact, Rank Pattern) work for Hi/Lo.
+- **Latency**: Reduce average response time for small range-vs-range queries by avoiding GPU overhead.
+- **Throughput**: Increase total cases per second for large datasets by saturating the GPU only when beneficial.
+- **Efficiency**: Zero manual configuration required by the user to achieve optimal performance.

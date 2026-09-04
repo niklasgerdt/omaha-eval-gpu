@@ -118,7 +118,7 @@ The internal CPU evaluator is optimized for high-performance Omaha evaluation.
 - **Parallel Validation**: ~250μs per case on multi-core systems.
 - **Accuracy**: 100% pass rate within 0.1 tolerance for benchmark datasets.
 
-## Milestone Release Pipeline (M2.2)
+## Milestone Release Pipeline (M2.3.C1)
 
 The project now features a robust, automated release pipeline to ensure quality and performance.
 - **Automated Workflow**: Using `scripts/milestone.sh` to manage branching, verification, and GitHub releases.

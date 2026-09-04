@@ -18,11 +18,11 @@ pub mod eval;
 pub mod eval_fast;
 pub mod gpu;
 
-use serde::{Deserialize, Serialize};
 use crate::eval::HandRank;
-use rand::seq::SliceRandom;
 use rand::SeedableRng;
+use rand::seq::SliceRandom;
 use rand_pcg::Pcg64;
+use serde::{Deserialize, Serialize};
 
 /// A card suit. Ordered `Spades > Hearts > Diamonds > Clubs` per §4.1.4,
 /// which breaks ties when two cards share a [`Rank`] in canonical ordering.
@@ -73,9 +73,21 @@ pub enum Rank {
 impl Rank {
     pub fn all() -> impl Iterator<Item = Rank> {
         [
-            Rank::Two, Rank::Three, Rank::Four, Rank::Five, Rank::Six, Rank::Seven,
-            Rank::Eight, Rank::Nine, Rank::Ten, Rank::Jack, Rank::Queen, Rank::King, Rank::Ace,
-        ].into_iter()
+            Rank::Two,
+            Rank::Three,
+            Rank::Four,
+            Rank::Five,
+            Rank::Six,
+            Rank::Seven,
+            Rank::Eight,
+            Rank::Nine,
+            Rank::Ten,
+            Rank::Jack,
+            Rank::Queen,
+            Rank::King,
+            Rank::Ace,
+        ]
+        .into_iter()
     }
 
     /// Parses the rank character of §4.1.1 notation (`2`-`9`, `T`, `J`,
@@ -276,43 +288,47 @@ impl Range {
             // §4.1.3 Range Notation
             // 1. Exact hand (8 chars, e.g. "AsKsQhJh")
             if part.len() == 8 {
-                 let mut cards = [Card::new(Rank::Two, Suit::Spades); 4];
-                 let mut valid = true;
-                 for i in 0..4 {
-                     if let Some(c) = Card::from_str(&part[i*2..i*2+2]) {
-                         cards[i] = c;
-                     } else {
-                         valid = false;
-                         break;
-                     }
-                 }
-                 if valid {
-                     if !cards.iter().any(|c| dead_cards.contains(c)) {
-                         hands.push((Hand::new(cards), 1.0));
-                     }
-                     continue;
-                 }
+                let mut cards = [Card::new(Rank::Two, Suit::Spades); 4];
+                let mut valid = true;
+                for i in 0..4 {
+                    if let Some(c) = Card::from_str(&part[i * 2..i * 2 + 2]) {
+                        cards[i] = c;
+                    } else {
+                        valid = false;
+                        break;
+                    }
+                }
+                if valid {
+                    if !cards.iter().any(|c| dead_cards.contains(c)) {
+                        hands.push((Hand::new(cards), 1.0));
+                    }
+                    continue;
+                }
             }
-            
+
             // 2. Rank Pattern (e.g. "AA" or "AKQJ")
             if part.len() == 2 || part.len() == 4 {
-                let ranks: Vec<Rank> = part.chars()
+                let ranks: Vec<Rank> = part
+                    .chars()
                     .map(|c| Rank::from_char(c).ok_or(format!("Invalid rank: {}", c)))
                     .collect::<Result<Vec<_>, _>>()?;
-                
-                let deck: Vec<Card> = full_deck().into_iter().filter(|c| !dead_cards.contains(c)).collect();
+
+                let deck: Vec<Card> = full_deck()
+                    .into_iter()
+                    .filter(|c| !dead_cards.contains(c))
+                    .collect();
 
                 let mut combos = Vec::new();
                 for c1_idx in 0..deck.len() {
-                    for c2_idx in c1_idx+1..deck.len() {
-                        for c3_idx in c2_idx+1..deck.len() {
-                            for c4_idx in c3_idx+1..deck.len() {
+                    for c2_idx in c1_idx + 1..deck.len() {
+                        for c3_idx in c2_idx + 1..deck.len() {
+                            for c4_idx in c3_idx + 1..deck.len() {
                                 let h = [deck[c1_idx], deck[c2_idx], deck[c3_idx], deck[c4_idx]];
                                 let mut r_counts = std::collections::HashMap::new();
                                 for c in &h {
                                     *r_counts.entry(c.rank).or_insert(0) += 1;
                                 }
-                                
+
                                 let mut match_found = true;
                                 if ranks.len() == 2 && ranks[0] == ranks[1] {
                                     // "AA" -> at least two Aces
@@ -328,7 +344,7 @@ impl Range {
                                         }
                                     }
                                 }
-                                
+
                                 if match_found {
                                     combos.push((Hand::new(h), 1.0));
                                 }
@@ -339,13 +355,13 @@ impl Range {
                 hands.extend(combos);
                 continue;
             }
-            
+
             // 3. Simple list of cards (catch-all for cases like "6dJh8h9h")
             if part.len() % 2 == 0 {
                 let mut cards = Vec::new();
                 let mut valid = true;
                 for i in 0..(part.len() / 2) {
-                    if let Some(c) = Card::from_str(&part[i*2..i*2+2]) {
+                    if let Some(c) = Card::from_str(&part[i * 2..i * 2 + 2]) {
                         cards.push(c);
                     } else {
                         valid = false;
@@ -361,7 +377,7 @@ impl Range {
                     continue;
                 }
             }
-            
+
             return Err(format!("Unsupported range notation: '{}'", part));
         }
 
@@ -423,18 +439,38 @@ impl Backend {
     }
 
     /// Single hand-vs-hand equity, routed per [`Backend`]'s rules above.
-    pub fn run_evaluation(&self, hero: &Hand, villain: &Hand, board: &Board, mode: &EvalMode, hi_lo: bool) -> Option<EquityResult> {
+    pub fn run_evaluation(
+        &self,
+        hero: &Hand,
+        villain: &Hand,
+        board: &Board,
+        mode: &EvalMode,
+        hi_lo: bool,
+    ) -> Option<EquityResult> {
         if !self.is_available() {
             return None;
         }
         match self {
-            Backend::Cpu => Some(evaluate_hand_vs_hand(hero.clone(), villain.clone(), board.clone(), mode.clone(), hi_lo)),
+            Backend::Cpu => Some(evaluate_hand_vs_hand(
+                hero.clone(),
+                villain.clone(),
+                board.clone(),
+                mode.clone(),
+                hi_lo,
+            )),
             Backend::Auto => {
                 // Try GPU first
-                if let Some(res) = crate::gpu::run_gpu_evaluation(hero, villain, board, mode, hi_lo) {
+                if let Some(res) = crate::gpu::run_gpu_evaluation(hero, villain, board, mode, hi_lo)
+                {
                     return Some(res);
                 }
-                Some(evaluate_hand_vs_hand(hero.clone(), villain.clone(), board.clone(), mode.clone(), hi_lo))
+                Some(evaluate_hand_vs_hand(
+                    hero.clone(),
+                    villain.clone(),
+                    board.clone(),
+                    mode.clone(),
+                    hi_lo,
+                ))
             }
             Backend::Cuda | Backend::Vulkan | Backend::Metal => {
                 crate::gpu::run_gpu_evaluation(hero, villain, board, mode, hi_lo)
@@ -446,24 +482,53 @@ impl Backend {
     /// board, mode)` case, routed per [`Backend`]'s rules above. Prefer
     /// [`Backend::run_range_evaluation_batch`] when evaluating many cases —
     /// it amortizes GPU dispatch overhead across up to 256 cases per call.
-    pub fn run_range_evaluation(&self, hero_range: &Range, villain_range: &Range, board: &Board, mode: &EvalMode, hi_lo: bool) -> EquityResult {
+    pub fn run_range_evaluation(
+        &self,
+        hero_range: &Range,
+        villain_range: &Range,
+        board: &Board,
+        mode: &EvalMode,
+        hi_lo: bool,
+    ) -> EquityResult {
         match self {
-            Backend::Cpu => evaluate_range_vs_range_internal(hero_range.clone(), villain_range.clone(), board.clone(), mode.clone(), hi_lo),
+            Backend::Cpu => evaluate_range_vs_range_internal(
+                hero_range.clone(),
+                villain_range.clone(),
+                board.clone(),
+                mode.clone(),
+                hi_lo,
+            ),
             Backend::Auto => {
                 if !hi_lo {
-                    if let Some(res) = crate::gpu::run_gpu_range_evaluation(hero_range, villain_range, board, mode) {
+                    if let Some(res) =
+                        crate::gpu::run_gpu_range_evaluation(hero_range, villain_range, board, mode)
+                    {
                         return res;
                     }
                 }
-                evaluate_range_vs_range_internal(hero_range.clone(), villain_range.clone(), board.clone(), mode.clone(), hi_lo)
+                evaluate_range_vs_range_internal(
+                    hero_range.clone(),
+                    villain_range.clone(),
+                    board.clone(),
+                    mode.clone(),
+                    hi_lo,
+                )
             }
             _ => {
                 if !hi_lo {
-                    if let Some(res) = crate::gpu::run_gpu_range_evaluation(hero_range, villain_range, board, mode) {
+                    if let Some(res) =
+                        crate::gpu::run_gpu_range_evaluation(hero_range, villain_range, board, mode)
+                    {
                         return res;
                     }
                 }
-                evaluate_range_vs_range_internal(hero_range.clone(), villain_range.clone(), board.clone(), mode.clone(), hi_lo)
+                evaluate_range_vs_range_internal(
+                    hero_range.clone(),
+                    villain_range.clone(),
+                    board.clone(),
+                    mode.clone(),
+                    hi_lo,
+                )
             }
         }
     }
@@ -481,15 +546,33 @@ impl Backend {
         hi_lo: bool,
     ) -> Vec<EquityResult> {
         if hi_lo {
-            return cases.iter().map(|(h, v, b, m)| {
-                evaluate_range_vs_range_internal(h.clone(), v.clone(), b.clone(), m.clone(), hi_lo)
-            }).collect();
+            return cases
+                .iter()
+                .map(|(h, v, b, m)| {
+                    evaluate_range_vs_range_internal(
+                        h.clone(),
+                        v.clone(),
+                        b.clone(),
+                        m.clone(),
+                        hi_lo,
+                    )
+                })
+                .collect();
         }
 
         match self {
-            Backend::Cpu => cases.iter().map(|(h, v, b, m)| {
-                evaluate_range_vs_range_internal(h.clone(), v.clone(), b.clone(), m.clone(), hi_lo)
-            }).collect(),
+            Backend::Cpu => cases
+                .iter()
+                .map(|(h, v, b, m)| {
+                    evaluate_range_vs_range_internal(
+                        h.clone(),
+                        v.clone(),
+                        b.clone(),
+                        m.clone(),
+                        hi_lo,
+                    )
+                })
+                .collect(),
             Backend::Auto | Backend::Metal | Backend::Cuda | Backend::Vulkan => {
                 let mut all_results = Vec::with_capacity(cases.len());
                 for chunk in cases.chunks(256) {
@@ -499,7 +582,13 @@ impl Backend {
                             all_results.push(r);
                         } else {
                             let (h, v, b, m) = &chunk[i];
-                            all_results.push(evaluate_range_vs_range_internal(h.clone(), v.clone(), b.clone(), m.clone(), hi_lo));
+                            all_results.push(evaluate_range_vs_range_internal(
+                                h.clone(),
+                                v.clone(),
+                                b.clone(),
+                                m.clone(),
+                                hi_lo,
+                            ));
                         }
                     }
                 }
@@ -554,10 +643,7 @@ pub fn evaluate_omaha_hand(hand: &Hand, board: &[Card]) -> HandRank {
         for i in 0..board.len() {
             for j in (i + 1)..board.len() {
                 for k in (j + 1)..board.len() {
-                    let cards = [
-                        hand.0[h1], hand.0[h2],
-                        board[i], board[j], board[k]
-                    ];
+                    let cards = [hand.0[h1], hand.0[h2], board[i], board[j], board[k]];
                     let rank = crate::eval::evaluate_5_cards(&cards);
                     if rank > best_rank {
                         best_rank = rank;
@@ -583,22 +669,27 @@ pub fn evaluate_omaha_hand_low(hand: &Hand, board: &[Card]) -> Option<[Rank; 5]>
 
     // Combinations of 2 cards from hand (4C2 = 6)
     let hand_indices = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
-    
+
     for &(h1, h2) in &hand_indices {
         for i in 0..board.len() {
             for j in (i + 1)..board.len() {
                 for k in (j + 1)..board.len() {
-                    let cards = [
-                        hand.0[h1], hand.0[h2],
-                        board[i], board[j], board[k]
-                    ];
+                    let cards = [hand.0[h1], hand.0[h2], board[i], board[j], board[k]];
                     if let Some(low_rank) = crate::eval::evaluate_5_cards_low(&cards) {
                         if let Some(best) = best_low {
                             let mut cur_vals = [0u32; 5];
                             let mut best_vals = [0u32; 5];
                             for n in 0..5 {
-                                cur_vals[n] = if low_rank[n] == Rank::Ace { 1 } else { low_rank[n] as u32 };
-                                best_vals[n] = if best[n] == Rank::Ace { 1 } else { best[n] as u32 };
+                                cur_vals[n] = if low_rank[n] == Rank::Ace {
+                                    1
+                                } else {
+                                    low_rank[n] as u32
+                                };
+                                best_vals[n] = if best[n] == Rank::Ace {
+                                    1
+                                } else {
+                                    best[n] as u32
+                                };
                             }
                             if cur_vals < best_vals {
                                 best_low = Some(low_rank);
@@ -725,9 +816,21 @@ pub fn evaluate_hand_vs_hand(
                 win: hero_wins as f64 / count as f64,
                 tie: ties as f64 / count as f64,
                 loss: villain_wins as f64 / count as f64,
-                win_low: if hi_lo && low_count > 0 { Some(hero_wins_low as f64 / low_count as f64) } else { None },
-                tie_low: if hi_lo && low_count > 0 { Some(ties_low as f64 / low_count as f64) } else { None },
-                loss_low: if hi_lo && low_count > 0 { Some(villain_wins_low as f64 / low_count as f64) } else { None },
+                win_low: if hi_lo && low_count > 0 {
+                    Some(hero_wins_low as f64 / low_count as f64)
+                } else {
+                    None
+                },
+                tie_low: if hi_lo && low_count > 0 {
+                    Some(ties_low as f64 / low_count as f64)
+                } else {
+                    None
+                },
+                loss_low: if hi_lo && low_count > 0 {
+                    Some(villain_wins_low as f64 / low_count as f64)
+                } else {
+                    None
+                },
                 trial_count: count as u64,
                 mode: EvalMode::Exhaustive,
                 confidence_interval: None,
@@ -743,7 +846,7 @@ pub fn evaluate_hand_vs_hand(
             let mut ties_low = 0;
             let mut low_count = 0;
             let remaining = 5 - board.0.len();
-            
+
             let mut deck_vec: Vec<Card> = deck[0..deck_len].to_vec();
 
             for _ in 0..samples {
@@ -753,7 +856,7 @@ pub fn evaluate_hand_vs_hand(
                 for i in 0..remaining {
                     full_board[board.0.len() + i] = deck_vec[i];
                 }
-                
+
                 let hero_rank = evaluate_omaha_hand(&hero, &full_board);
                 let villain_rank = evaluate_omaha_hand(&villain, &full_board);
                 if hero_rank > villain_rank {
@@ -801,9 +904,21 @@ pub fn evaluate_hand_vs_hand(
                 win: hero_wins as f64 / samples as f64,
                 tie: ties as f64 / samples as f64,
                 loss: villain_wins as f64 / samples as f64,
-                win_low: if hi_lo && low_count > 0 { Some(hero_wins_low as f64 / low_count as f64) } else { None },
-                tie_low: if hi_lo && low_count > 0 { Some(ties_low as f64 / low_count as f64) } else { None },
-                loss_low: if hi_lo && low_count > 0 { Some(villain_wins_low as f64 / low_count as f64) } else { None },
+                win_low: if hi_lo && low_count > 0 {
+                    Some(hero_wins_low as f64 / low_count as f64)
+                } else {
+                    None
+                },
+                tie_low: if hi_lo && low_count > 0 {
+                    Some(ties_low as f64 / low_count as f64)
+                } else {
+                    None
+                },
+                loss_low: if hi_lo && low_count > 0 {
+                    Some(villain_wins_low as f64 / low_count as f64)
+                } else {
+                    None
+                },
                 trial_count: samples,
                 mode: EvalMode::MonteCarlo { samples, seed },
                 confidence_interval: None,
@@ -812,7 +927,13 @@ pub fn evaluate_hand_vs_hand(
         _ => {
             let samples = 10000;
             let seed = 42;
-            evaluate_hand_vs_hand(hero, villain, board, EvalMode::MonteCarlo { samples, seed }, hi_lo)
+            evaluate_hand_vs_hand(
+                hero,
+                villain,
+                board,
+                EvalMode::MonteCarlo { samples, seed },
+                hi_lo,
+            )
         }
     }
 }
@@ -841,11 +962,21 @@ pub fn evaluate_hand_vs_range(
 
     for (villain_hand, weight) in &villain_range.hands {
         // Skip if villain hand overlaps with hero hand or board
-        if villain_hand.0.iter().any(|c| hero.0.contains(c) || board.0.contains(c)) {
+        if villain_hand
+            .0
+            .iter()
+            .any(|c| hero.0.contains(c) || board.0.contains(c))
+        {
             continue;
         }
 
-        let res = evaluate_hand_vs_hand(hero.clone(), villain_hand.clone(), board.clone(), mode.clone(), hi_lo);
+        let res = evaluate_hand_vs_hand(
+            hero.clone(),
+            villain_hand.clone(),
+            board.clone(),
+            mode.clone(),
+            hi_lo,
+        );
         total_win += res.win * weight;
         total_tie += res.tie * weight;
         total_loss += res.loss * weight;
@@ -877,9 +1008,21 @@ pub fn evaluate_hand_vs_range(
         win: total_win / total_weight,
         tie: total_tie / total_weight,
         loss: total_loss / total_weight,
-        win_low: if hi_lo && total_weight_low > 0.0 { Some(total_win_low / total_weight_low) } else { None },
-        tie_low: if hi_lo && total_weight_low > 0.0 { Some(total_tie_low / total_weight_low) } else { None },
-        loss_low: if hi_lo && total_weight_low > 0.0 { Some(total_loss_low / total_weight_low) } else { None },
+        win_low: if hi_lo && total_weight_low > 0.0 {
+            Some(total_win_low / total_weight_low)
+        } else {
+            None
+        },
+        tie_low: if hi_lo && total_weight_low > 0.0 {
+            Some(total_tie_low / total_weight_low)
+        } else {
+            None
+        },
+        loss_low: if hi_lo && total_weight_low > 0.0 {
+            Some(total_loss_low / total_weight_low)
+        } else {
+            None
+        },
         trial_count: total_trials,
         mode,
         confidence_interval: None,
@@ -933,11 +1076,21 @@ fn evaluate_range_vs_range_internal(
 
         for (villain_hand, villain_weight) in &villain_range.hands {
             // Skip if villain hand overlaps with hero hand or board
-            if villain_hand.0.iter().any(|c| hero_hand.0.contains(c) || board.0.contains(c)) {
+            if villain_hand
+                .0
+                .iter()
+                .any(|c| hero_hand.0.contains(c) || board.0.contains(c))
+            {
                 continue;
             }
 
-            let res = evaluate_hand_vs_hand(hero_hand.clone(), villain_hand.clone(), board.clone(), mode.clone(), hi_lo);
+            let res = evaluate_hand_vs_hand(
+                hero_hand.clone(),
+                villain_hand.clone(),
+                board.clone(),
+                mode.clone(),
+                hi_lo,
+            );
             sub_win += res.win * villain_weight;
             sub_tie += res.tie * villain_weight;
             sub_loss += res.loss * villain_weight;
@@ -972,9 +1125,21 @@ fn evaluate_range_vs_range_internal(
         win: total_win / total_weight,
         tie: total_tie / total_weight,
         loss: total_loss / total_weight,
-        win_low: if hi_lo && total_weight_low > 0.0 { Some(total_win_low / total_weight_low) } else { None },
-        tie_low: if hi_lo && total_weight_low > 0.0 { Some(total_tie_low / total_weight_low) } else { None },
-        loss_low: if hi_lo && total_weight_low > 0.0 { Some(total_loss_low / total_weight_low) } else { None },
+        win_low: if hi_lo && total_weight_low > 0.0 {
+            Some(total_win_low / total_weight_low)
+        } else {
+            None
+        },
+        tie_low: if hi_lo && total_weight_low > 0.0 {
+            Some(total_tie_low / total_weight_low)
+        } else {
+            None
+        },
+        loss_low: if hi_lo && total_weight_low > 0.0 {
+            Some(total_loss_low / total_weight_low)
+        } else {
+            None
+        },
         trial_count: total_trials,
         mode,
         confidence_interval: None,
@@ -993,7 +1158,10 @@ pub fn random_hand(dead_cards: &[Card], rng_seed: Option<u64>) -> Hand {
 /// Deals `count` non-overlapping 4-card hands from a single shuffle of the deck
 /// (minus `dead_cards`).
 pub fn random_hands(count: usize, dead_cards: &[Card], rng_seed: Option<u64>) -> Vec<Hand> {
-    let mut deck: Vec<Card> = full_deck().into_iter().filter(|c| !dead_cards.contains(c)).collect();
+    let mut deck: Vec<Card> = full_deck()
+        .into_iter()
+        .filter(|c| !dead_cards.contains(c))
+        .collect();
 
     let mut rng = if let Some(seed) = rng_seed {
         Pcg64::seed_from_u64(seed)
@@ -1003,7 +1171,14 @@ pub fn random_hands(count: usize, dead_cards: &[Card], rng_seed: Option<u64>) ->
 
     deck.shuffle(&mut rng);
     (0..count)
-        .map(|i| Hand::new([deck[i * 4], deck[i * 4 + 1], deck[i * 4 + 2], deck[i * 4 + 3]]))
+        .map(|i| {
+            Hand::new([
+                deck[i * 4],
+                deck[i * 4 + 1],
+                deck[i * 4 + 2],
+                deck[i * 4 + 3],
+            ])
+        })
         .collect()
 }
 
@@ -1025,7 +1200,7 @@ mod tests {
             Card::new(Rank::King, Suit::Spades),
             Card::new(Rank::Two, Suit::Diamonds),
         ];
-        
+
         // Omaha: exactly 2 from hand, 3 from board.
         // Hand cards: As, Ac, Kh, Kd
         // Board cards: Ah, Ks, 2d
@@ -1035,7 +1210,7 @@ mod tests {
         // ...
         // There are NO 5 cards from board in Omaha evaluation if we only have 3 board cards.
         // Wait, if the board has only 3 cards, there is only ONE combination: 2 from hand + ALL 3 from board.
-        
+
         let rank = evaluate_omaha_hand(&hero, &board);
         match rank {
             HandRank::ThreeOfAKind(Rank::Ace, Rank::King, Rank::Two) => (),
@@ -1064,7 +1239,7 @@ mod tests {
             Card::new(Rank::Eight, Suit::Clubs),
             Card::new(Rank::Nine, Suit::Spades),
         ]);
-        
+
         let result = evaluate_hand_vs_hand(hero, villain, board, EvalMode::Exhaustive, false);
         assert_eq!(result.win, 1.0);
         assert_eq!(result.loss, 0.0);
@@ -1093,9 +1268,9 @@ mod tests {
             Card::new(Rank::Ten, Suit::Spades),
             Card::new(Rank::Jack, Suit::Clubs),
         ]);
-        
+
         let result = evaluate_hand_vs_hand(hero, villain, board, EvalMode::Exhaustive, true);
-        
+
         // Hero low: A, 2 + 3, 4, 5 -> 5, 4, 3, 2, 1 (Best possible low)
         // Villain low: A, 3 + 4, 5, 3 is not possible because only 3 from board.
         // Villain low: A, 3 + 4, 5, 10 (no), A, 3 + 3 (no), A, 3 + 4, 5 and one more from hand? No, exactly 2 from hand.
@@ -1106,7 +1281,7 @@ mod tests {
         // Low hand must have 5 unique ranks.
         // Villain low: {A, Q} + {3, 4, 5} -> No. {3, Q} + {3, 4, 5} -> No.
         // Villain has NO low hand.
-        
+
         assert_eq!(result.win_low, Some(1.0));
     }
 
@@ -1152,8 +1327,15 @@ mod tests {
             Card::from_str("6h").unwrap(),
         ]);
 
-        let cpu_res = evaluate_hand_vs_hand(hero.clone(), villain.clone(), board.clone(), EvalMode::Exhaustive, false);
-        let gpu_res = crate::gpu::run_gpu_evaluation(&hero, &villain, &board, &EvalMode::Exhaustive, false);
+        let cpu_res = evaluate_hand_vs_hand(
+            hero.clone(),
+            villain.clone(),
+            board.clone(),
+            EvalMode::Exhaustive,
+            false,
+        );
+        let gpu_res =
+            crate::gpu::run_gpu_evaluation(&hero, &villain, &board, &EvalMode::Exhaustive, false);
 
         if let Some(gpu_res) = gpu_res {
             assert!((cpu_res.win - gpu_res.win).abs() < 1e-6);
@@ -1187,7 +1369,8 @@ mod tests {
             Card::from_str("9s").unwrap(),
         ]);
 
-        let gpu_res = crate::gpu::run_gpu_evaluation(&hero, &villain, &board, &EvalMode::Exhaustive, false);
+        let gpu_res =
+            crate::gpu::run_gpu_evaluation(&hero, &villain, &board, &EvalMode::Exhaustive, false);
         if let Some(res) = gpu_res {
             assert!(res.win + res.tie + res.loss > 0.0);
         }
@@ -1203,21 +1386,39 @@ mod tests {
         for _ in 0..256 {
             let hands = random_hands(2, &[], Some(rng_seed));
             rng_seed += 1;
-            let hero_range = Range { hands: vec![(hands[0].clone(), 1.0)] };
-            let villain_range = Range { hands: vec![(hands[1].clone(), 1.0)] };
-            cases.push((hero_range, villain_range, Board::new(vec![]), EvalMode::MonteCarlo { samples: 1000, seed: 42 }));
+            let hero_range = Range {
+                hands: vec![(hands[0].clone(), 1.0)],
+            };
+            let villain_range = Range {
+                hands: vec![(hands[1].clone(), 1.0)],
+            };
+            cases.push((
+                hero_range,
+                villain_range,
+                Board::new(vec![]),
+                EvalMode::MonteCarlo {
+                    samples: 1000,
+                    seed: 42,
+                },
+            ));
         }
 
         let gpu_results = crate::gpu::run_gpu_range_evaluation_batch(&cases);
-        let zero_count = gpu_results.iter().filter(|r| {
-            matches!(r, Some(res) if res.win == 0.0 && res.tie == 0.0 && res.loss == 0.0)
-        }).count();
+        let zero_count = gpu_results
+            .iter()
+            .filter(
+                |r| matches!(r, Some(res) if res.win == 0.0 && res.tie == 0.0 && res.loss == 0.0),
+            )
+            .count();
         let none_count = gpu_results.iter().filter(|r| r.is_none()).count();
         println!("zero-equity results: {zero_count}/256, None results: {none_count}/256");
         for (i, r) in gpu_results.iter().enumerate().take(5) {
             println!("case {i}: {r:?}");
         }
-        assert_eq!(zero_count, 0, "GPU MC batch returned zero equities under real-world load");
+        assert_eq!(
+            zero_count, 0,
+            "GPU MC batch returned zero equities under real-world load"
+        );
     }
 
     #[test]
@@ -1249,16 +1450,36 @@ mod tests {
                 Card::from_str(&villain_str[4..6]).unwrap(),
                 Card::from_str(&villain_str[6..8]).unwrap(),
             ]);
-            let hero_range = Range { hands: vec![(hero, 1.0)] };
-            let villain_range = Range { hands: vec![(villain, 1.0)] };
+            let hero_range = Range {
+                hands: vec![(hero, 1.0)],
+            };
+            let villain_range = Range {
+                hands: vec![(villain, 1.0)],
+            };
             let res = crate::gpu::run_gpu_range_evaluation(
-                &hero_range, &villain_range, &Board::new(vec![]),
-                &EvalMode::MonteCarlo { samples: 20000, seed: 7 },
-            ).expect("GPU should be available");
+                &hero_range,
+                &villain_range,
+                &Board::new(vec![]),
+                &EvalMode::MonteCarlo {
+                    samples: 20000,
+                    seed: 7,
+                },
+            )
+            .expect("GPU should be available");
             let eq = res.win + res.tie / 2.0;
             let delta = (eq - expected_eq).abs();
-            println!("{} {} gpu={:.4} ps-eval={:.4} delta={:.4}", hero_str, villain_str, eq, expected_eq, delta);
-            assert!(delta < 0.03, "{} vs {}: gpu={:.4} too far from ps-eval={:.4}", hero_str, villain_str, eq, expected_eq);
+            println!(
+                "{} {} gpu={:.4} ps-eval={:.4} delta={:.4}",
+                hero_str, villain_str, eq, expected_eq, delta
+            );
+            assert!(
+                delta < 0.03,
+                "{} vs {}: gpu={:.4} too far from ps-eval={:.4}",
+                hero_str,
+                villain_str,
+                eq,
+                expected_eq
+            );
         }
     }
 
@@ -1284,15 +1505,29 @@ mod tests {
                     for _ in 0..256 {
                         let hands = random_hands(2, &[], Some(rng_seed));
                         rng_seed += 1;
-                        let hero_range = Range { hands: vec![(hands[0].clone(), 1.0)] };
-                        let villain_range = Range { hands: vec![(hands[1].clone(), 1.0)] };
-                        cases.push((hero_range, villain_range, Board::new(vec![]), EvalMode::MonteCarlo { samples: 1000, seed: 42 }));
+                        let hero_range = Range {
+                            hands: vec![(hands[0].clone(), 1.0)],
+                        };
+                        let villain_range = Range {
+                            hands: vec![(hands[1].clone(), 1.0)],
+                        };
+                        cases.push((
+                            hero_range,
+                            villain_range,
+                            Board::new(vec![]),
+                            EvalMode::MonteCarlo {
+                                samples: 1000,
+                                seed: 42,
+                            },
+                        ));
                     }
                     let gpu_results = crate::gpu::run_gpu_range_evaluation_batch(&cases);
                     for r in &gpu_results {
                         case_total.fetch_add(1, Ordering::Relaxed);
                         match r {
-                            None => { none_total.fetch_add(1, Ordering::Relaxed); }
+                            None => {
+                                none_total.fetch_add(1, Ordering::Relaxed);
+                            }
                             Some(res) if res.win == 0.0 && res.tie == 0.0 && res.loss == 0.0 => {
                                 zero_total.fetch_add(1, Ordering::Relaxed);
                             }
@@ -1310,6 +1545,9 @@ mod tests {
         let zeros = zero_total.load(Ordering::Relaxed);
         let nones = none_total.load(Ordering::Relaxed);
         println!("concurrent: {cases} cases, {zeros} zero-equity, {nones} None (GPU unavailable)");
-        assert_eq!(zeros, 0, "GPU MC batch returned zero equities under concurrent load");
+        assert_eq!(
+            zeros, 0,
+            "GPU MC batch returned zero equities under concurrent load"
+        );
     }
 }
