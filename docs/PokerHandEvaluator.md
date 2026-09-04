@@ -186,6 +186,7 @@ Note: The internal evaluator is now highly competitive with `ps-eval` for single
 ## 15. Milestones
 1. **M1 (COMPLETED)** — Core types, high-performance CPU/GPU evaluators, Omaha Hi/Lo support, range-vs-range calculations, parallel validation bench, and comprehensive documentation.
 2. **M2.1 (COMPLETED)** — Hardened GPU backend with improved synchronization and memory safety. Resolved intermittent zero-equity results.
-3. **M3 (Backend selection: partially completed)** — `Backend::Auto` tries GPU first and falls back to CPU per-case (see §7.4/§7.5); the GPU now covers every street via exhaustive turn/flop enumeration and lane-split Monte Carlo for boards under 3 cards, so the originally proposed street/case-size *selection heuristic* (docs/Milestone3.md) is superseded — GPU is attempted unconditionally rather than gated by a threshold. Multi-node support and enhanced range weighting remain open.
-4. **M4** — Omaha Hi/Lo capability and comprehensive validation against split-pot test sets.
-5. **M5** — Web-based visualization tools and distributed evaluation.
+3. **M3** — Texas Hold'em as a first-class variant: 2-card hands, best-5-of-7 showdown on `evaluate_5_cards`, Hold'em range notation, CPU + GPU equity, validation dataset. See [docs/Milestone3.md](Milestone3.md). Omaha behaviour must not regress.
+4. **M4 (Backend selection: partially completed)** — `Backend::Auto` tries GPU first and falls back to CPU per-case (see §7.4/§7.5); the GPU now covers every street via exhaustive turn/flop enumeration and lane-split Monte Carlo for boards under 3 cards, so the originally proposed street/case-size *selection heuristic* (docs/Milestone4.md) is superseded — GPU is attempted unconditionally rather than gated by a threshold. Multi-node support and enhanced range weighting remain open.
+5. **M5** — Omaha Hi/Lo capability and comprehensive validation against split-pot test sets.
+6. **M6** — Web-based visualization tools and distributed evaluation.
